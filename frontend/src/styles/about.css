@@ -1,0 +1,127 @@
+.about-description {
+  text-align: left;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 3rem 2rem 5rem;
+  color: var(--text);
+  line-height: 1.75;
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.8rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #00ff88;
+  text-shadow: 0 0 20px rgba(0, 255, 136, 0.5), 0 0 60px rgba(0, 255, 136, 0.15);
+  text-align: center;
+  margin-bottom: 0.25rem;
+  animation: flicker 10s infinite;
+}
+
+.subtitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.about-description h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #00d4ff;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid #00d4ff;
+  text-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
+}
+
+.about-description h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #00ff88;
+  margin-top: 1.5rem;
+  margin-bottom: 0.4rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid rgba(0, 255, 136, 0.4);
+}
+
+.about-description p {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--text);
+  margin: 0.4rem 0;
+  line-height: 1.75;
+}
+
+.about-description b, .about-description strong {
+  color: #00ff88;
+}
+
+.about-description u {
+  text-decoration: none;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.5);
+  color: #00d4ff;
+}
+
+.stages-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0;
+}
+
+.stages-list li {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--text);
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.5rem;
+  background: rgba(0, 255, 136, 0.03);
+  border: 1px solid rgba(0, 255, 136, 0.1);
+  border-left: 2px solid rgba(0, 255, 136, 0.4);
+  border-radius: 2px;
+  line-height: 1.6;
+  position: relative;
+}
+
+.stages-list li::before {
+  content: '>';
+  color: var(--green);
+  margin-right: 0.5rem;
+}
+
+.return-to-menu {
+  margin-top: 2.5rem;
+  padding: 0.7rem 1.8rem;
+  background: transparent;
+  color: #ff3355;
+  border: 1px solid rgba(255, 51, 85, 0.45);
+  border-radius: 2px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  align-self: flex-start;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+}
+
+.return-to-menu:hover {
+  background: rgba(255, 51, 85, 0.08);
+  border-color: #ff3355;
+  box-shadow: 0 0 12px rgba(255, 51, 85, 0.2);
+  color: #ff6680;
+}

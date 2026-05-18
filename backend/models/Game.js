@@ -1,0 +1,532 @@
+const GameSystem = require('./GameSystem');
+const { HackerDeck, SecEngDeck, TaskDeck } = require('./decks');
+const { Hacker, SecurityEngineer, MAX_HAND_SIZE } = require('./Player');
+const { PlayerLog } = require('./game_logs');
+
+const MAX_CARDS_PER_TURN = 1;
+const INITIAL_SECURITY_HAND_SIZE = 4;
+const MIN_PLAYERS = 4;
+const MAX_PLAYERS = 5;
+const VOTE_UNLOCK_TURN = 3;
+
+class Game {
+  constructor(lobbyPlayers) {
+    if (!Array.isArray(lobbyPlayers) || lobbyPlayers.length < MIN_PLAYERS || lobbyPlayers.length > MAX_PLAYERS) {
+      throw new Error(`Intrusion requires ${MIN_PLAYERS}-${MAX_PLAYERS} players`);
+    }
+
+    const hackerIndex = Math.floor(Math.random() * lobbyPlayers.length);
+    this.players = lobbyPlayers.map((lp, index) => index === hackerIndex
+      ? new Hacker(lp.name, lp.socketId, lp.sessionToken)
+      : new SecurityEngineer(lp.name, lp.socketId, lp.sessionToken));
+
+    this.hackerDeck = new HackerDeck();
+    this.secEngDeck = new SecEngDeck();
+    this.taskDeck = new TaskDeck();
+    this.system = new GameSystem(this.players.length);
+
+    this.turnNumber = 0;
+    this.phase = 'lobby';
+    this.winner = null;
+    this.endReason = null;
+    this.turnSubmissions = {};
+    this.lastTurnSubmissionDebug = [];
+    this.currentVote = null;
+    this.votingExpired = false;
+    this.eliminated = [];
+
+    this.playerLogs = Object.fromEntries(this.players.map(player => [player.name, new PlayerLog()]));
+    this.taskCompletionCounts = Object.fromEntries(this.players.map(player => [player.name, 0]));
+  }
+
+  start() {
+    for (const player of this.players) {
+      if (player instanceof Hacker) {
+        const openingDefence = this.secEngDeck.drawWhere(card => card.type === 'defence');
+        player.receiveCards([
+          openingDefence,
+          ...this.secEngDeck.drawMany(1),
+          ...this.hackerDeck.drawMany(2),
+        ].filter(Boolean));
+      } else {
+        player.receiveCards(this.secEngDeck.drawMany(INITIAL_SECURITY_HAND_SIZE));
+      }
+      this._dealNewTask(player);
+    }
+
+    this.phase = 'playing';
+    this.turnNumber = 1;
+  }
+
+  dealStartOfTurn() {
+    this.turnSubmissions = {};
+    this.lastTurnSubmissionDebug = [];
+
+    for (const player of this.players) {
+      player.hasPlayedCards = false;
+      player.canPlayCards = true;
+      player.canPlayAttacks = true;
+      player.cardsPlayedThisTurn = [];
+      player.needsDiscard = false;
+      player.forcedDiscardCount = 0;
+      player.replacedTaskThisTurn = false;
+      player.awaitingDrawChoice = false;
+
+      if (this.turnNumber <= 1) continue;
+
+      if (player instanceof Hacker) {
+        player.awaitingDrawChoice = true;
+      } else {
+        player.receiveCards(this.secEngDeck.drawMany(1));
+      }
+    }
+  }
+
+  chooseHackerDraw(playerName, { security = 0, hacker = 0 } = {}) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Game is not in the playing phase' };
+    const player = this.getPlayer(playerName);
+    if (!(player instanceof Hacker)) return { ok: false, error: 'Only the hacker chooses between decks' };
+    if (!player.awaitingDrawChoice) return { ok: false, error: 'You have already chosen your draw this turn' };
+
+    const securityDraws = Number(security) || 0;
+    const hackerDraws = Number(hacker) || 0;
+    if (securityDraws < 0 || hackerDraws < 0 || securityDraws + hackerDraws !== 2) {
+      return { ok: false, error: 'Choose exactly 2 cards total' };
+    }
+
+    player.receiveCards([
+      ...this.secEngDeck.drawMany(securityDraws),
+      ...this.hackerDeck.drawMany(hackerDraws),
+    ]);
+    player.awaitingDrawChoice = false;
+    player.forcedDiscardCount = 1;
+
+    return { ok: true, mustDiscard: player.mustDiscard(), discardCount: player.discardCount() };
+  }
+
+  submitCards(playerName, cardRefs = [], cardOptions = {}) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Game is not in the playing phase' };
+    if (!Array.isArray(cardRefs)) return { ok: false, error: 'Card submission must be an array' };
+
+    const player = this.getPlayer(playerName);
+    if (!player) return { ok: false, error: 'Player not found or has been eliminated' };
+    if (player.awaitingDrawChoice) return { ok: false, error: 'Choose your deck draw first' };
+    if (player.mustDiscard()) return { ok: false, error: 'Discard before submitting' };
+    if (this.turnSubmissions[playerName] !== undefined) return { ok: false, error: 'Already submitted this turn' };
+    if (cardRefs.length > MAX_CARDS_PER_TURN) return { ok: false, error: `Core mode allows ${MAX_CARDS_PER_TURN} card per turn` };
+
+    const resolved = this._resolveSubmittedCards(player, cardRefs);
+    if (!resolved.ok) return resolved;
+    const toPlay = resolved.cards;
+
+    for (const card of toPlay) {
+      if (card.hackerOnly && !(player instanceof Hacker)) return { ok: false, error: `${card.name} is not a security card` };
+      if (!card.isPlayable(this.system)) return { ok: false, error: `${card.name} cannot be played right now` };
+    }
+
+    for (const card of toPlay) {
+      card.owner = player;
+      const options = cardOptions?.[card.id] || cardOptions?.[card.name] || {};
+      if (card.name === 'Check Server Log') {
+        card.targetPlayerName = options.targetPlayerName || options.target || null;
+      }
+
+      if (player.task?.id === card.id) player.task = null;
+      else player.removeCardFromHand(card.id, { clearOwner: false });
+
+      player.hasPlayedCards = true;
+      player.cardsPlayedThisTurn.push(card);
+      card.onPlay(this.system);
+      this.system.addProcess(card);
+    }
+
+    player.markDiscardIfNeeded();
+    this.turnSubmissions[playerName] = toPlay;
+
+    return { ok: true, mustDiscard: player.mustDiscard(), discardCount: player.discardCount() };
+  }
+
+  discardCards(playerName, cardRefs = []) {
+    const player = this.getPlayer(playerName);
+    if (!player) return { ok: false, error: 'Player not found or has been eliminated' };
+    if (!player.mustDiscard()) return { ok: false, error: 'You do not need to discard right now' };
+    if (!Array.isArray(cardRefs) || cardRefs.length !== player.discardCount()) {
+      return { ok: false, error: `Select exactly ${player.discardCount()} card(s) to discard` };
+    }
+
+    const cards = [];
+    const used = new Set();
+    for (const ref of cardRefs) {
+      const idx = player.cards.findIndex((card, index) => !used.has(index) && (card.id === ref || card.name === ref));
+      if (idx === -1) return { ok: false, error: `Card "${ref}" not found in your hand` };
+      used.add(idx);
+      cards.push(player.cards[idx]);
+    }
+
+    for (const card of cards) {
+      const removed = player.removeCardFromHand(card.id);
+      if (removed) this._discardCard(removed);
+    }
+
+    if (player.forcedDiscardCount > 0) player.forcedDiscardCount = 0;
+    player.clearDiscardRequirementIfSatisfied();
+    return { ok: true, mustDiscard: player.mustDiscard(), discardCount: player.discardCount() };
+  }
+
+  resolveTurn() {
+    const resolvedTurnNumber = this.turnNumber;
+    this.lastTurnSubmissionDebug = Object.entries(this.turnSubmissions).map(([owner, cards]) => ({
+      owner,
+      cards: (cards || []).map(card => ({ name: card.name, type: card.type, id: card.id, ownerRole: card.owner?.returnType?.() || 'unknown' })),
+    }));
+
+    const submissionSnapshot = Object.fromEntries(Object.entries(this.turnSubmissions).map(([owner, cards]) => [owner, (cards || []).map(card => ({
+      id: card.id,
+      name: card.name,
+      type: card.type,
+      lane: card.lane,
+      isHostile: Boolean(card.isHostile || card.type === 'attack'),
+    }))]));
+
+    const log = this.system.consumeProcesses(resolvedTurnNumber, submissionSnapshot);
+
+    for (const ownerName of this.system.completedTaskOwners || []) {
+      this.taskCompletionCounts[ownerName] = (this.taskCompletionCounts[ownerName] || 0) + 1;
+    }
+
+    this._discardResolvedCards();
+    this._printTurnDebug();
+
+    for (const player of this.players) {
+      if (!player.task && this.phase !== 'ended' && this.system.numTasks > 0) this._dealNewTask(player);
+    }
+
+    const win = this._checkWinConditions();
+    this.turnNumber += 1;
+    return this._turnSummary(log, win, resolvedTurnNumber);
+  }
+
+  replaceTask(playerName) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Cannot replace a task right now' };
+    const player = this.getPlayer(playerName);
+    if (!player) return { ok: false, error: 'Player not found or has been eliminated' };
+    if (player.awaitingDrawChoice) return { ok: false, error: 'Choose your deck draw first' };
+    if (this.turnSubmissions[playerName] !== undefined) return { ok: false, error: 'You cannot replace a task after submitting this turn' };
+    if (player.replacedTaskThisTurn) return { ok: false, error: 'You can only replace your task once per turn' };
+
+    if (player.task) this.taskDeck.discard(player.task);
+    player.task = null;
+    this._dealNewTask(player);
+    player.replacedTaskThisTurn = true;
+    return { ok: true, task: player.task ? player.task.toJSON() : null };
+  }
+
+  startVote(callerName) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Cannot start a vote right now' };
+    if (this.turnNumber < VOTE_UNLOCK_TURN) return { ok: false, error: `Voting unlocks on cycle ${VOTE_UNLOCK_TURN}` };
+    if (this.votingExpired) return { ok: false, error: 'Voting rights have already been used' };
+    if (this.currentVote) return { ok: false, error: 'A vote is already in progress' };
+    const caller = this.getPlayer(callerName);
+    if (!(caller instanceof SecurityEngineer)) return { ok: false, error: 'Only active security engineers can call a vote' };
+
+    this.phase = 'voting';
+    this.currentVote = { votes: {}, eligible: this.players.map(player => player.name) };
+    return { ok: true };
+  }
+
+  castVote(voterName, accusedName) {
+    if (!this.currentVote) return { ok: false, error: 'No vote in progress' };
+    if (!this.getPlayer(voterName)) return { ok: false, error: 'Eliminated players cannot vote' };
+    if (!this.getPlayer(accusedName)) return { ok: false, error: 'You can only accuse an active player' };
+    this.currentVote.votes[voterName] = accusedName;
+    const allVoted = this.currentVote.eligible.every(name => name in this.currentVote.votes);
+    if (!allVoted) return { ok: true, waiting: true };
+    return this._resolveVote();
+  }
+
+  toClientJSON(forPlayerName, { roomSpectators = [] } = {}) {
+    const visiblePlayers = [
+      ...this.players.map(player => ({ player, eliminated: false })),
+      ...this.eliminated.map(player => ({ player, eliminated: true })),
+    ];
+    const isRoomSpectator = roomSpectators.some(spectator => spectator.name === forPlayerName);
+
+    const playerRows = visiblePlayers.map(({ player, eliminated }) => {
+      const isMe = player.name === forPlayerName;
+      const json = isMe ? player.toPrivateJSON() : player.toPublicJSON();
+      json.isEliminated = eliminated;
+      json.isSpectator = false;
+      json.submittedThisTurn = this.turnSubmissions[player.name] !== undefined;
+      json.submittedCardsThisTurn = isMe ? (this.turnSubmissions[player.name] || []).map(card => card.toJSON()) : [];
+      json.tasksCompleted = this.taskCompletionCounts[player.name] || 0;
+
+      if (eliminated) {
+        json.role = isMe ? 'Spectator' : 'Eliminated';
+        json.isSpectator = true;
+        json.handSize = 0;
+        if (!isMe) json.task = null;
+      } else if (!isMe) {
+        json.role = 'hidden';
+      }
+
+      if (!isMe) {
+        delete json.cards;
+        delete json.cardsPlayedThisTurn;
+      }
+      return json;
+    });
+
+    const spectatorRows = roomSpectators.map(spectator => ({
+      name: spectator.name,
+      role: 'Spectator',
+      isSpectator: true,
+      isEliminated: false,
+      connected: spectator.connected !== false,
+      handSize: 0,
+      task: null,
+      timePoints: 0,
+      commPoints: 0,
+      progPoints: 0,
+      hasPlayedCards: false,
+      canPlayCards: false,
+      canPlayAttacks: false,
+      mustDiscard: false,
+      discardCount: 0,
+      forcedDiscardCount: 0,
+      awaitingDrawChoice: false,
+      replacedTaskThisTurn: false,
+      submittedThisTurn: true,
+      submittedCardsThisTurn: [],
+      tasksCompleted: 0,
+      cards: spectator.name === forPlayerName ? [] : undefined,
+      cardsPlayedThisTurn: spectator.name === forPlayerName ? [] : undefined,
+    }));
+
+    return {
+      turnNumber: this.turnNumber,
+      phase: this.phase,
+      winner: this.winner,
+      endReason: this.endReason,
+      system: this.system.toPublicJSON(),
+      votingExpired: this.votingExpired,
+      voteUnlockTurn: VOTE_UNLOCK_TURN,
+      eliminated: this.eliminated.map(player => player.name),
+      spectators: roomSpectators.map(spectator => ({ name: spectator.name, connected: spectator.connected !== false })),
+      taskLeaderboard: this._taskLeaderboard(),
+      players: [...playerRows, ...spectatorRows],
+      viewerIsSpectator: isRoomSpectator,
+    };
+  }
+
+  getPlayer(name) { return this.players.find(player => player.name === name) || null; }
+  getHacker() { return this.players.find(player => player instanceof Hacker) || null; }
+  getEngineers() { return this.players.filter(player => player instanceof SecurityEngineer); }
+  getSpectators() { return [...this.eliminated]; }
+
+  canResolveTurn() {
+    if (this.phase !== 'playing') return false;
+    return this.players.every(player =>
+      !player.awaitingDrawChoice && !player.mustDiscard() && this.turnSubmissions[player.name] !== undefined
+    );
+  }
+
+  _resolveSubmittedCards(player, cardRefs) {
+    const cards = [];
+    const usedHandIndexes = new Set();
+    let usedTask = false;
+
+    for (const ref of cardRefs) {
+      const handIndex = player.cards.findIndex((card, index) => !usedHandIndexes.has(index) && (card.id === ref || card.name === ref));
+      if (handIndex !== -1) {
+        usedHandIndexes.add(handIndex);
+        cards.push(player.cards[handIndex]);
+        continue;
+      }
+
+      if (!usedTask && player.task && (player.task.id === ref || player.task.name === ref)) {
+        usedTask = true;
+        cards.push(player.task);
+        continue;
+      }
+
+      return { ok: false, error: `Card "${ref}" not found in your hand or task slot` };
+    }
+
+    return { ok: true, cards };
+  }
+
+  _dealNewTask(player) {
+    const taskCard = this.taskDeck.draw();
+    if (taskCard) {
+      taskCard.owner = player;
+      player.task = taskCard;
+    }
+  }
+
+  _checkWinConditions() {
+    if (this.system.checkLoss()) return this._endGame('hacker', 'System integrity reached zero');
+    if (this.system.checkWin()) return this._endGame('engineers', this.system.hackerArrested ? 'Hacker was caught' : 'Project completed');
+    return null;
+  }
+
+  _endGame(winner, reason) {
+    this.phase = 'ended';
+    this.winner = winner;
+    this.endReason = reason;
+    return { winner, reason };
+  }
+
+  _turnSummary(log, win, resolvedTurnNumber = this.turnNumber) {
+    return {
+      turnNumber: resolvedTurnNumber,
+      log: log.map(entry => entry.toJSON()),
+      incidentReport: this._publicIncidentReport(resolvedTurnNumber),
+      privateIncidentReports: this._privateIncidentReports(resolvedTurnNumber),
+      system: this.system.toPublicJSON(),
+      win,
+      reconResult: this.system.reconResult,
+      serverLogResults: [...(this.system.serverLogResults || [])],
+      completedTaskOwners: [...this.system.completedTaskOwners],
+      turnDebug: { ...(this.system.turnDebug || {}), submitted: this.lastTurnSubmissionDebug },
+    };
+  }
+
+  _deckForCard(card) {
+    if (!card) return null;
+    if (card.type === 'task' || card.sourceDeck === 'task') return this.taskDeck;
+    if (card.sourceDeck === 'hacker') return this.hackerDeck;
+    if (card.sourceDeck === 'security') return this.secEngDeck;
+    if (card.owner instanceof Hacker || card.owner?.returnType?.() === 'Hacker') return this.hackerDeck;
+    return this.secEngDeck;
+  }
+
+  _discardCard(card) {
+    const deck = this._deckForCard(card);
+    if (deck) deck.discard(card);
+  }
+
+  _discardResolvedCards() {
+    const discardIds = new Set();
+    const discardOnce = (card) => {
+      if (!card) return;
+      const key = card.id || `${card.name}-${card.type}`;
+      if (discardIds.has(key)) return;
+      discardIds.add(key);
+      this._discardCard(card);
+    };
+
+    for (const { card } of this.system.processedThisTurn || []) {
+      if (this.system.defenceCards.includes(card)) continue;
+      discardOnce(card);
+    }
+    for (const { card } of this.system.unprocessedThisTurn || []) discardOnce(card);
+    for (const card of this.system.replacedDefencesThisTurn || []) discardOnce(card);
+  }
+
+  _taskLeaderboard() {
+    const names = [...this.players.map(player => player.name), ...this.eliminated.map(player => player.name)];
+    return names.map(name => ({ name, tasksCompleted: this.taskCompletionCounts[name] || 0 }))
+      .sort((a, b) => b.tasksCompleted - a.tasksCompleted || a.name.localeCompare(b.name));
+  }
+
+  _publicIncidentReport(resolvedTurnNumber = this.turnNumber) {
+    const events = [...(this.system.incidentEvents || [])];
+    if (events.length > 0) return events;
+    return [{
+      id: `turn-${resolvedTurnNumber}-none`,
+      turnNum: resolvedTurnNumber,
+      type: 'system',
+      title: 'No operations',
+      message: 'No card effects resolved this cycle.',
+      coinFlips: [],
+      integrityBefore: this.system.integrityPoints,
+      integrityAfter: this.system.integrityPoints,
+      integrityDelta: 0,
+    }];
+  }
+
+  _privateIncidentReports(resolvedTurnNumber = this.turnNumber) {
+    const reports = {};
+    for (const result of this.system.serverLogResults || []) {
+      if (!result.ownerName) continue;
+      reports[result.ownerName] = reports[result.ownerName] || [];
+      reports[result.ownerName].push({
+        id: `turn-${resolvedTurnNumber}-private-log-${reports[result.ownerName].length}`,
+        turnNum: resolvedTurnNumber,
+        type: 'private',
+        title: 'Private server log result',
+        message: result.checked
+          ? `You checked ${result.targetName}. Their submitted card was ${result.hostile ? 'hostile' : 'not hostile'}.`
+          : 'No valid log target was available.',
+        ownerName: result.ownerName,
+        targetName: result.targetName,
+        hostile: result.hostile,
+        coinFlips: [],
+        integrityBefore: this.system.integrityPoints,
+        integrityAfter: this.system.integrityPoints,
+        integrityDelta: 0,
+      });
+    }
+    return reports;
+  }
+
+  _printTurnDebug() {
+    const debug = this.system.turnDebug;
+    if (!debug) return;
+    console.log(`===== TURN ${debug.turnNum} =====`);
+    console.log('Submitted cards:');
+    for (const { owner, cards } of this.lastTurnSubmissionDebug || []) {
+      console.log(`  ${owner}: ${cards.length ? cards.map(card => `${card.name} (${card.type})`).join(', ') : 'pass'}`);
+    }
+    console.log('Processed:');
+    for (const entry of debug.processed || []) console.log(`  ${entry.owner} [${entry.ownerRole}] -> ${entry.name} (${entry.type})`);
+    console.log(`Integrity: ${debug.integrityPoints}; Evidence: ${debug.evidence}`);
+    console.log('====================');
+  }
+
+  _resolveVote() {
+    const vote = this.currentVote;
+    this.currentVote = null;
+
+    const tally = {};
+    for (const [voter, accused] of Object.entries(vote.votes)) {
+      const voterPlayer = this.getPlayer(voter);
+      if (voterPlayer instanceof Hacker) continue;
+      tally[accused] = (tally[accused] || 0) + 1;
+    }
+
+    if (Object.keys(tally).length === 0) {
+      this.phase = 'playing';
+      return { ok: true, outcome: 'no-engineer-votes' };
+    }
+
+    const maxVotes = Math.max(...Object.values(tally));
+    const topNames = Object.keys(tally).filter(name => tally[name] === maxVotes);
+    if (topNames.length !== 1) {
+      this.phase = 'playing';
+      return { ok: true, outcome: 'tie', eliminated: null };
+    }
+
+    const eliminatedName = topNames[0];
+    const eliminatedPlayer = this.getPlayer(eliminatedName);
+    if (!eliminatedPlayer) {
+      this.phase = 'playing';
+      return { ok: false, error: 'Vote target was not found' };
+    }
+
+    this.players = this.players.filter(player => player.name !== eliminatedName);
+    this.eliminated.push(eliminatedPlayer);
+
+    if (eliminatedPlayer instanceof Hacker) {
+      this.system.setHackerArrested();
+      const win = this._endGame('engineers', 'Hacker voted out');
+      return { ok: true, outcome: 'hacker-caught', eliminated: eliminatedName, win };
+    }
+
+    this.votingExpired = true;
+    this.phase = 'playing';
+    return { ok: true, outcome: 'wrong-player', eliminated: eliminatedName, votingExpired: true };
+  }
+}
+
+module.exports = Game;
