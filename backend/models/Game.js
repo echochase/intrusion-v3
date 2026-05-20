@@ -3,7 +3,8 @@ const { HackerDeck, SecEngDeck, TaskDeck } = require('./decks');
 const { Hacker, SecurityEngineer, MAX_HAND_SIZE } = require('./Player');
 const { PlayerLog } = require('./game_logs');
 
-const MAX_CARDS_PER_TURN = 1;
+const SECURITY_MAX_CARDS_PER_TURN = 1;
+const HACKER_MAX_CARDS_PER_TURN = 2;
 const INITIAL_SECURITY_HAND_SIZE = 4;
 const MIN_PLAYERS = 4;
 const MAX_PLAYERS = 5;
@@ -32,6 +33,7 @@ class Game {
     this.turnSubmissions = {};
     this.lastTurnSubmissionDebug = [];
     this.currentVote = null;
+    this.voteProposal = null;
     this.votingExpired = false;
     this.eliminated = [];
 
@@ -45,7 +47,7 @@ class Game {
         const openingDefence = this.secEngDeck.drawWhere(card => card.type === 'defence');
         player.receiveCards([
           openingDefence,
-          ...this.secEngDeck.drawMany(1),
+          ...this.secEngDeck.drawMany(2),
           ...this.hackerDeck.drawMany(2),
         ].filter(Boolean));
       } else {
@@ -99,7 +101,6 @@ class Game {
       ...this.hackerDeck.drawMany(hackerDraws),
     ]);
     player.awaitingDrawChoice = false;
-    player.forcedDiscardCount = 1;
 
     return { ok: true, mustDiscard: player.mustDiscard(), discardCount: player.discardCount() };
   }
@@ -113,11 +114,18 @@ class Game {
     if (player.awaitingDrawChoice) return { ok: false, error: 'Choose your deck draw first' };
     if (player.mustDiscard()) return { ok: false, error: 'Discard before submitting' };
     if (this.turnSubmissions[playerName] !== undefined) return { ok: false, error: 'Already submitted this turn' };
-    if (cardRefs.length > MAX_CARDS_PER_TURN) return { ok: false, error: `Core mode allows ${MAX_CARDS_PER_TURN} card per turn` };
+
+    const maxCards = player instanceof Hacker ? HACKER_MAX_CARDS_PER_TURN : SECURITY_MAX_CARDS_PER_TURN;
+    if (cardRefs.length > maxCards) {
+      return { ok: false, error: player instanceof Hacker ? 'The Hacker may submit up to 2 cards per turn' : 'Security Engineers may submit 1 card per turn' };
+    }
 
     const resolved = this._resolveSubmittedCards(player, cardRefs);
     if (!resolved.ok) return resolved;
     const toPlay = resolved.cards;
+
+    const kindCheck = this._validateSubmissionKinds(player, toPlay);
+    if (!kindCheck.ok) return kindCheck;
 
     for (const card of toPlay) {
       if (card.hackerOnly && !(player instanceof Hacker)) return { ok: false, error: `${card.name} is not a security card` };
@@ -129,6 +137,11 @@ class Game {
       const options = cardOptions?.[card.id] || cardOptions?.[card.name] || {};
       if (card.name === 'Check Server Log') {
         card.targetPlayerName = options.targetPlayerName || options.target || null;
+      }
+      if (card.type === 'defence') {
+        const rawSlot = options.defenceSlotIndex ?? options.slotIndex ?? options.slot;
+        const slotIndex = Number(rawSlot);
+        card.defenceSlotIndex = Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < 3 ? slotIndex : null;
       }
 
       if (player.task?.id === card.id) player.task = null;
@@ -186,6 +199,7 @@ class Game {
       type: card.type,
       lane: card.lane,
       isHostile: Boolean(card.isHostile || card.type === 'attack'),
+      submissionKind: this._submissionKind(card),
     }))]));
 
     const log = this.system.consumeProcesses(resolvedTurnNumber, submissionSnapshot);
@@ -221,17 +235,60 @@ class Game {
     return { ok: true, task: player.task ? player.task.toJSON() : null };
   }
 
-  startVote(callerName) {
-    if (this.phase !== 'playing') return { ok: false, error: 'Cannot start a vote right now' };
+  proposeVote(callerName) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Cannot propose a vote right now' };
     if (this.turnNumber < VOTE_UNLOCK_TURN) return { ok: false, error: `Voting unlocks on cycle ${VOTE_UNLOCK_TURN}` };
     if (this.votingExpired) return { ok: false, error: 'Voting rights have already been used' };
     if (this.currentVote) return { ok: false, error: 'A vote is already in progress' };
+    if (this.voteProposal) return { ok: false, error: 'A vote proposal is already open' };
     const caller = this.getPlayer(callerName);
     if (!(caller instanceof SecurityEngineer)) return { ok: false, error: 'Only active security engineers can call a vote' };
 
+    const eligible = this.players.map(player => player.name);
+    const threshold = this.players.length >= 5 ? 3 : 2;
+    this.voteProposal = { callerName, approvals: { [callerName]: true }, responses: { [callerName]: 'proceed' }, eligible, threshold };
+
+    if (Object.keys(this.voteProposal.approvals).length >= threshold) {
+      return this._beginFormalVote();
+    }
+
+    return { ok: true, proposal: this._voteProposalJSON(callerName), waiting: true };
+  }
+
+  respondVoteProposal(playerName, proceed = false) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Cannot respond to a vote proposal right now' };
+    if (!this.voteProposal) return { ok: false, error: 'No vote proposal is open' };
+    if (!this.getPlayer(playerName)) return { ok: false, error: 'Only active players can respond to a vote proposal' };
+    if (!this.voteProposal.eligible.includes(playerName)) return { ok: false, error: 'You are not eligible to respond to this vote proposal' };
+
+    if (proceed) {
+      this.voteProposal.approvals[playerName] = true;
+      this.voteProposal.responses[playerName] = 'proceed';
+    } else {
+      delete this.voteProposal.approvals[playerName];
+      this.voteProposal.responses[playerName] = 'delay';
+    }
+
+    if (Object.keys(this.voteProposal.approvals).length >= this.voteProposal.threshold) {
+      return this._beginFormalVote();
+    }
+
+    const allResponded = this.voteProposal.eligible.every(name => this.voteProposal.responses[name]);
+    if (allResponded) {
+      const callerName = this.voteProposal.callerName;
+      this.voteProposal = null;
+      return { ok: true, outcome: 'deferred', callerName };
+    }
+
+    return { ok: true, proposal: this._voteProposalJSON(playerName), waiting: true };
+  }
+
+  _beginFormalVote() {
+    const proposal = this.voteProposal;
+    this.voteProposal = null;
     this.phase = 'voting';
-    this.currentVote = { votes: {}, eligible: this.players.map(player => player.name) };
-    return { ok: true };
+    this.currentVote = { votes: {}, eligible: this.players.map(player => player.name), proposedBy: proposal?.callerName || null };
+    return { ok: true, outcome: 'started' };
   }
 
   castVote(voterName, accusedName) {
@@ -266,12 +323,25 @@ class Game {
         json.handSize = 0;
         if (!isMe) json.task = null;
       } else if (!isMe) {
-        json.role = 'hidden';
+        if (this.system.hackerRevealed && player instanceof Hacker) {
+          json.role = 'Hacker';
+          json.hackerRevealed = true;
+        } else {
+          json.role = 'hidden';
+        }
+      }
+
+      if (this.system.hackerRevealed && player instanceof Hacker) {
+        json.hackerRevealed = true;
       }
 
       if (!isMe) {
         delete json.cards;
         delete json.cardsPlayedThisTurn;
+        json.mustDiscard = false;
+        json.discardCount = 0;
+        json.forcedDiscardCount = 0;
+        json.awaitingDrawChoice = false;
       }
       return json;
     });
@@ -309,10 +379,10 @@ class Game {
       endReason: this.endReason,
       system: this.system.toPublicJSON(),
       votingExpired: this.votingExpired,
+      voteProposal: this._voteProposalJSON(forPlayerName),
       voteUnlockTurn: VOTE_UNLOCK_TURN,
       eliminated: this.eliminated.map(player => player.name),
       spectators: roomSpectators.map(spectator => ({ name: spectator.name, connected: spectator.connected !== false })),
-      taskLeaderboard: this._taskLeaderboard(),
       players: [...playerRows, ...spectatorRows],
       viewerIsSpectator: isRoomSpectator,
     };
@@ -355,6 +425,39 @@ class Game {
     return { ok: true, cards };
   }
 
+  _submissionKind(card) {
+    if (!card) return 'security';
+    if (card.hackerOnly || card.type === 'attack' || card.sourceDeck === 'hacker') return 'hacker';
+    return 'security';
+  }
+
+  _validateSubmissionKinds(player, cards) {
+    if (!(player instanceof Hacker)) {
+      if (cards.length > SECURITY_MAX_CARDS_PER_TURN) return { ok: false, error: 'Security Engineers may submit 1 card per turn' };
+      return { ok: true };
+    }
+
+    const counts = { hacker: 0, security: 0 };
+    for (const card of cards) counts[this._submissionKind(card)] += 1;
+    if (counts.hacker > 1 || counts.security > 1) {
+      return { ok: false, error: 'The Hacker may submit at most 1 Hacker card and 1 Security card per turn' };
+    }
+    return { ok: true };
+  }
+
+  _voteProposalJSON(forPlayerName = null) {
+    if (!this.voteProposal) return null;
+    const responses = this.voteProposal.responses || {};
+    return {
+      callerName: this.voteProposal.callerName,
+      threshold: this.voteProposal.threshold,
+      approvalCount: Object.keys(this.voteProposal.approvals || {}).length,
+      eligibleCount: this.voteProposal.eligible?.length || 0,
+      hasResponded: Boolean(forPlayerName && responses[forPlayerName]),
+      yourResponse: forPlayerName ? responses[forPlayerName] || null : null,
+    };
+  }
+
   _dealNewTask(player) {
     const taskCard = this.taskDeck.draw();
     if (taskCard) {
@@ -379,15 +482,16 @@ class Game {
   _turnSummary(log, win, resolvedTurnNumber = this.turnNumber) {
     return {
       turnNumber: resolvedTurnNumber,
-      log: log.map(entry => entry.toJSON()),
+      log: log
+        .filter(entry => !entry.incidentEvent?.publicHidden)
+        .map(entry => entry.toJSON()),
       incidentReport: this._publicIncidentReport(resolvedTurnNumber),
       privateIncidentReports: this._privateIncidentReports(resolvedTurnNumber),
       system: this.system.toPublicJSON(),
       win,
       reconResult: this.system.reconResult,
       serverLogResults: [...(this.system.serverLogResults || [])],
-      completedTaskOwners: [...this.system.completedTaskOwners],
-      turnDebug: { ...(this.system.turnDebug || {}), submitted: this.lastTurnSubmissionDebug },
+      completedTaskOwners: [],
     };
   }
 
@@ -423,14 +527,8 @@ class Game {
     for (const card of this.system.replacedDefencesThisTurn || []) discardOnce(card);
   }
 
-  _taskLeaderboard() {
-    const names = [...this.players.map(player => player.name), ...this.eliminated.map(player => player.name)];
-    return names.map(name => ({ name, tasksCompleted: this.taskCompletionCounts[name] || 0 }))
-      .sort((a, b) => b.tasksCompleted - a.tasksCompleted || a.name.localeCompare(b.name));
-  }
-
   _publicIncidentReport(resolvedTurnNumber = this.turnNumber) {
-    const events = [...(this.system.incidentEvents || [])];
+    const events = [...(this.system.incidentEvents || [])].filter(event => !event.publicHidden);
     if (events.length > 0) return events;
     return [{
       id: `turn-${resolvedTurnNumber}-none`,
@@ -456,8 +554,8 @@ class Game {
         type: 'private',
         title: 'Private server log result',
         message: result.checked
-          ? `You checked ${result.targetName}. Their submitted card was ${result.hostile ? 'hostile' : 'not hostile'}.`
-          : 'No valid log target was available.',
+          ? `You checked ${result.targetName}. ${result.hostile ? 'They have played a hostile card this cycle, which means they are the Hacker.' : 'They have not played a hostile card this cycle.'}`
+          : (result.insufficientEvidence ? 'Not enough Evidence was available to check the server log.' : 'No valid log target was available.'),
         ownerName: result.ownerName,
         targetName: result.targetName,
         hostile: result.hostile,
@@ -487,6 +585,7 @@ class Game {
   _resolveVote() {
     const vote = this.currentVote;
     this.currentVote = null;
+    this.voteProposal = null;
 
     const tally = {};
     for (const [voter, accused] of Object.entries(vote.votes)) {

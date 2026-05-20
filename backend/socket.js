@@ -530,10 +530,33 @@ module.exports = function(io) {
       if (!game) return;
 
       const caller = _playerNameBySocket(room, socket.id);
-      const result = game.startVote(caller);
+      const result = game.proposeVote(caller);
       if (!result.ok) return socket.emit('game-error', result.error);
 
-      io.to(room).emit('vote-started');
+      if (result.outcome === 'started') {
+        io.to(room).emit('vote-started');
+      } else {
+        io.to(room).emit('vote-proposed', { callerName: caller });
+      }
+      _emitPrivateStates(io, room, roomData);
+    });
+
+    socket.on('respond-vote-proposal', ({ room, playerName, proceed }) => {
+      const roomData = rooms[room];
+      const game = _game(socket, room);
+      if (!game) return;
+
+      const responder = playerName || _playerNameBySocket(room, socket.id);
+      const result = game.respondVoteProposal(responder, Boolean(proceed));
+      if (!result.ok) return socket.emit('game-error', result.error);
+
+      if (result.outcome === 'started') {
+        io.to(room).emit('vote-started');
+      } else if (result.outcome === 'deferred') {
+        io.to(room).emit('vote-proposal-deferred', { callerName: result.callerName });
+      } else {
+        io.to(room).emit('vote-proposal-updated', result.proposal || null);
+      }
       _emitPrivateStates(io, room, roomData);
     });
 

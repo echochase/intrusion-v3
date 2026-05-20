@@ -3,10 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "@mui/material";
 import "../styles/game.css";
 
-const CARD_BACK_SRC = "/src/assets/card-back.png";
-
 const cardModules = import.meta.glob(
-  "/src/assets/{attack-cards,defence-cards,task-cards,skill-cards}/*.{png,jpg,jpeg,webp}",
+  "/src/assets/{attack-cards,defence-cards,task-cards}/*.{png,jpg,jpeg,webp}",
   { eager: true, import: "default" }
 );
 
@@ -51,7 +49,6 @@ function titleCaseCardName(value = "") {
 
   if (titled === "DDoS") return "DDoS Attack";
   if (titled === "Zero Day") return "Zero-Day Attack";
-  if (titled === "Brute Force") return "Brute Force Attack";
   return titled;
 }
 
@@ -63,27 +60,17 @@ const KNOWN_CARD_NAMES = Array.from(new Set([
   "Zero-Day Attack",
   "Credential Theft",
   "XSS Attack",
-  "SQL Injection",
   "Rapid Incident Response",
   "Threat Mitigation Protocol",
   "Check Server Log",
   "Reconnaissance",
-  "Insider Sabotage",
-  "Socialise with Tech Team",
   "Two-Factor Authentication",
   "Anti-DDoS Defence",
-  "Secure Hashing & Salting",
   "Employee Awareness",
   "Security Detail",
   "Input Sanitisation",
   "Phishing",
-  "Shoulder Surfing",
-  "Stored XSS",
-  "Reflected XSS",
-  "SIM Swapping",
   "Physical Data Theft",
-  "Authenticator Theft",
-  "Brute Force Attack",
   "Hazard Report",
   "Corporate Announcement",
   "Server Maintenance",
@@ -167,6 +154,14 @@ function imageFor(card) {
   if (cardImageMap[normal]) return cardImageMap[normal];
   if (compactCardImageMap[compact]) return compactCardImageMap[compact];
 
+  const aliases = {
+    reflectedxss: "xssattack",
+    storedxss: "xssattack",
+  };
+  if (aliases[compact] && compactCardImageMap[aliases[compact]]) {
+    return compactCardImageMap[aliases[compact]];
+  }
+
   const fuzzy = cardImageEntries.find((entry) =>
     entry.compact.includes(compact) || compact.includes(entry.compact)
   );
@@ -176,84 +171,87 @@ function imageFor(card) {
 
 
 
-const SKILL_LABELS = {
-  time: 'TIME MGMT',
-  comm: 'COMMUNICATION',
-  prog: 'PROGRAMMING',
-  sep: 'SE points',
-};
-
-function extractSkillCost(card) {
-  if (!card || card.type === 'action' || card.type === 'skill') return [];
-
-  const text = `${card.effectDescription || ''}\n${card.description || ''}`;
-  const costs = [];
-  const seen = new Set();
-  const pattern = /(\d+)\s*x\s*(Communication|Time Management|Programming)/gi;
-  let match;
-
-  while ((match = pattern.exec(text)) !== null) {
-    const skillName = match[2].toLowerCase();
-    const kind = skillName.includes('communication')
-      ? 'comm'
-      : skillName.includes('programming')
-        ? 'prog'
-        : 'time';
-    const key = `${kind}-${match[1]}`;
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      costs.push({ kind, amount: Number(match[1]) });
-    }
-  }
-
-  return costs;
+function isTaskLaneDefended(system, card) {
+  if (!card || card.type !== 'task') return true;
+  return (system?.lanes || []).some((lane) => lane.lane === card.lane && lane.status === 'defended');
 }
 
-function playerSkillValue(player, kind) {
-  if (!player) return 0;
-  if (kind === 'time') return player.timePoints ?? 0;
-  if (kind === 'comm') return player.commPoints ?? 0;
-  if (kind === 'prog') return player.progPoints ?? 0;
+function taskDomainLabel(cardOrLane) {
+  const lane = typeof cardOrLane === 'string' ? cardOrLane : cardOrLane?.lane;
+  if (lane === 'credentials') return 'Credential';
+  if (lane === 'social') return 'Social';
+  if (lane === 'web') return 'Web';
+  if (lane === 'network') return 'Network';
+  if (lane === 'physical') return 'Physical';
+  return cardOrLane?.laneLabel || 'Matching';
+}
+
+function defaultDefenceSlot(system, card) {
+  const slots = system?.defenceSlots || [];
+  const sameLane = slots.find((slot) => slot.card?.lane === card?.lane);
+  if (sameLane) return sameLane.index ?? 0;
+  const empty = slots.find((slot) => slot.state === 'empty' || !slot.card);
+  if (empty) return empty.index ?? 0;
   return 0;
 }
 
-function canAffordCard(player, card) {
-  if (!card || card.type === 'action' || card.type === 'skill') return true;
-  const costs = extractSkillCost(card);
-  return costs.every(({ kind, amount }) => playerSkillValue(player, kind) >= amount);
+function laneRequirementMessage(card) {
+  if (!card || card.type !== 'task') return '';
+  return `The ${card.laneLabel || 'matching'} Lane is undefended. ${card.name} cannot be completed yet.`;
 }
 
-function affordabilityMessage(player, card) {
-  if (!card || card.type === 'action' || card.type === 'skill') return '';
-  const costs = extractSkillCost(card);
-  const missing = costs
-    .filter(({ kind, amount }) => playerSkillValue(player, kind) < amount)
-    .map(({ kind, amount }) => `${SKILL_LABELS[kind]} ${playerSkillValue(player, kind)}/${amount}`);
+function submissionKind(card) {
+  if (!card) return 'security';
+  if (card.submissionKind) return card.submissionKind;
+  if (card.hackerOnly || card.type === 'attack' || card.sourceDeck === 'hacker') return 'hacker';
+  return 'security';
+}
 
-  if (missing.length === 0) return '';
-  return `Cannot afford ${card?.name || 'that card'} - need ${missing.join(', ')}.`;
+function maxSubmitCardsFor(player) {
+  return player?.role === 'Hacker' ? 2 : 1;
+}
+
+function submissionRuleMessage(player, existingCards, nextCard) {
+  const maxCards = maxSubmitCardsFor(player);
+  if ((existingCards?.length || 0) >= maxCards) {
+    return player?.role === 'Hacker'
+      ? 'The Hacker can queue up to 2 cards: at most 1 Hacker card and 1 Security card.'
+      : 'Security Engineers can queue 1 card per turn.';
+  }
+
+  if (player?.role === 'Hacker') {
+    const nextKind = submissionKind(nextCard);
+    if ((existingCards || []).some((card) => submissionKind(card) === nextKind)) {
+      return nextKind === 'hacker'
+        ? 'The Hacker can only queue 1 Hacker card this turn.'
+        : 'The Hacker can only queue 1 Security card this turn.';
+    }
+  }
+
+  return '';
+}
+
+function stateRequirementMessage(system, card) {
+  if (!card) return '';
+  if (card.name === 'Check Server Log' && (system?.evidence || 0) < 1) {
+    return 'Check Server Log costs 1 Evidence. The team has no Evidence yet.';
+  }
+  return '';
 }
 
 function CardCostChips({ card }) {
-  const costs = extractSkillCost(card);
+  if (!card) return null;
 
-  if (card?.type === 'action') {
-    return <span className="cost-chip cost-free">Free action</span>;
+  const chips = [];
+  if (card.type && card.type !== 'task') chips.push(card.type);
+  if (card.laneLabel) {
+    chips.push(card.type === 'task' ? taskDomainLabel(card) : `${card.laneLabel} Lane`);
   }
 
-  if (card?.type === 'skill') {
-    return <span className="cost-chip cost-free">Free skill</span>;
-  }
+  if (chips.length === 0) return null;
 
-  if (costs.length === 0) {
-    return <span className="cost-chip cost-free">No skill cost</span>;
-  }
-
-  return costs.map(({ kind, amount }) => (
-    <span key={`${kind}-${amount}`} className={`cost-chip skill-${kind}`}>
-      {SKILL_LABELS[kind]} {amount}
-    </span>
+  return chips.map((chip) => (
+    <span key={chip} className="cost-chip cost-free">{chip}</span>
   ));
 }
 
@@ -271,6 +269,7 @@ function CardTile({
   onInspect,
   compact = false,
   animate = false,
+  showDetails = true,
 }) {
   const src = imageFor(card);
   const holdTimerRef = useRef(null);
@@ -329,7 +328,7 @@ function CardTile({
         clearHold();
         onDragStart?.(event);
       }}
-      title={effectText(card)}
+      title={showDetails ? `${card?.name || 'Card'} — click and hold for details` : undefined}
     >
       {src ? (
         <img src={src} alt={card.name} className="play-card-image" draggable={false} />
@@ -340,16 +339,18 @@ function CardTile({
         </div>
       )}
 
-      <div className="play-card-details">
-        <strong>{card?.name}</strong>
-        <p>{effectText(card)}</p>
-        <div className="cost-chip-row">
-          <CardCostChips card={card} />
-          {card?.deployTime > 0 && (
-            <span className="cost-chip cost-delay">{card.deployTime} turn pending</span>
-          )}
+      {showDetails && (
+        <div className="play-card-details">
+          <strong>{card?.name}</strong>
+          <p>Click and hold for details.</p>
+          <div className="cost-chip-row">
+            <CardCostChips card={card} />
+            {card?.deployTime > 0 && (
+              <span className="cost-chip cost-delay">{card.deployTime} turn pending</span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {holding && (
         <div className="hold-progress" aria-label="Hold to inspect">
@@ -368,31 +369,11 @@ function CardTile({
   );
 }
 
-function SkillValue({ label, value = 0, delta = 0, kind }) {
-  return (
-    <div className={`skill-cell skill-${kind} ${delta > 0 ? "skill-pending" : ""}`}>
-      <span>{label}</span>
-      <strong>
-        {delta > 0 ? (
-          <>
-            <span className="skill-current">{value}</span>
-            <span className="skill-arrow">-&gt;</span>
-            <span className="skill-next">{value + delta}</span>
-          </>
-        ) : (
-          value
-        )}
-      </strong>
-    </div>
-  );
-}
 
-function PlayerSkillChips({ player }) {
+function PlayerProgressChips({ player }) {
   return (
-    <div className="agent-skills" aria-label={`${player.name} status`}>
-      <span className="agent-skill-chip skill-time">tasks {player.tasksCompleted ?? 0}</span>
-      {player.awaitingDrawChoice && <span className="agent-skill-chip skill-comm">drawing</span>}
-      {player.mustDiscard && <span className="agent-skill-chip skill-prog">discard {player.discardCount ?? 0}</span>}
+    <div className="agent-skills" aria-label={`${player.name} progress`}>
+      <span className="agent-skill-chip skill-prog">TASK {player.tasksCompleted ?? 0}</span>
     </div>
   );
 }
@@ -408,31 +389,31 @@ function DefenceZone({ slots = [], onInspect }) {
       {normalisedSlots.slice(0, 3).map((slot, index) => {
         if (slot.state === "revealed" && slot.card) {
           return (
-            <div key={slot.card.id ?? index} className="defence-slot revealed">
-              <CardTile card={slot.card} compact disabled onInspect={onInspect} />
-            </div>
+            <button
+              key={slot.card.id ?? index}
+              type="button"
+              className="defence-slot revealed text-only"
+              onClick={() => onInspect?.(slot.card)}
+            >
+              <span className="defence-slot-label">DEFENDED</span>
+              <strong>{slot.card.name}</strong>
+            </button>
           );
         }
 
         if (slot.state === "hidden") {
           return (
-            <div key={`hidden-${index}`} className="defence-slot hidden-card">
-              <img
-                src={CARD_BACK_SRC}
-                alt="Face-down defence card"
-                draggable={false}
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-              <span>Face Down</span>
+            <div key={`hidden-${index}`} className="defence-slot hidden-card text-only">
+              <span className="defence-slot-label">DEFENCE</span>
+              <strong>Face Down</strong>
             </div>
           );
         }
 
         return (
-          <div key={`empty-${index}`} className="defence-slot empty">
-            <span>Empty Slot</span>
+          <div key={`empty-${index}`} className="defence-slot empty text-only">
+            <span className="defence-slot-label">OPEN</span>
+            <strong>Empty Slot</strong>
           </div>
         );
       })}
@@ -468,38 +449,56 @@ function LaneBoard({ lanes = [], onInspect }) {
   );
 }
 
-function HackerDrawPanel({ you, onChoose }) {
-  if (!you?.awaitingDrawChoice) return null;
+function DefenceSlotSelector({ card, system, value, onChange }) {
+  if (!card || card.type !== 'defence') return null;
+  const slots = system?.defenceSlots || [];
+  const selected = value ?? defaultDefenceSlot(system, card);
 
   return (
-    <section className="game-panel hacker-draw-panel">
-      <div className="panel-heading">
-        <span>// private draw</span>
-        <strong>choose 2 cards</strong>
-      </div>
-      <p>Choose any combination of Security and Hacker deck draws. After drawing, discard 1 card from your hand before submitting.</p>
-      <div className="hacker-draw-options">
-        <button type="button" onClick={() => onChoose({ security: 0, hacker: 2 })}>2 Hacker</button>
-        <button type="button" onClick={() => onChoose({ security: 1, hacker: 1 })}>1 + 1</button>
-        <button type="button" onClick={() => onChoose({ security: 2, hacker: 0 })}>2 Security</button>
-      </div>
-    </section>
-  );
-}
-
-
-function PendingBreakdown({ counts = {} }) {
-  return (
-    <div className="pending-breakdown">
-      <div><span>condition</span><strong>{counts.condition ?? 0}</strong></div>
-      <div><span>1-turn</span><strong>{counts.oneTurn ?? 0}</strong></div>
-      <div><span>2-turn</span><strong>{counts.twoTurn ?? 0}</strong></div>
+    <div className="target-selector-row defence-slot-selector-row">
+      <label htmlFor={`defence-slot-${card.id}`}>Defence Slot</label>
+      <select
+        id={`defence-slot-${card.id}`}
+        value={selected}
+        onChange={(event) => onChange(Number(event.target.value))}
+      >
+        {Array.from({ length: 3 }).map((_, index) => {
+          const slot = slots.find((candidate) => candidate.index === index) || { index, state: 'empty', card: null };
+          const replacement = slot.card ? `Replace ${slot.card.name}` : 'Empty';
+          return <option key={index} value={index}>Slot {index + 1} — {replacement}</option>;
+        })}
+      </select>
     </div>
   );
 }
 
+function HackerDrawPanel({ you, onChoose }) {
+  if (!you?.awaitingDrawChoice) return null;
+
+  return (
+    <div className="hacker-draw-panel embedded-draw-menu">
+      <div className="panel-heading compact-heading">
+        <span>// private draw</span>
+        <strong>choose 2</strong>
+      </div>
+      <div className="hacker-draw-options compact-draw-options">
+        <button type="button" onClick={() => onChoose({ security: 2, hacker: 0 })}>2 Security</button>
+        <button type="button" onClick={() => onChoose({ security: 1, hacker: 1 })}>1 Each</button>
+        <button type="button" onClick={() => onChoose({ security: 0, hacker: 2 })}>2 Hacker</button>
+      </div>
+    </div>
+  );
+}
+
+
+
 function displayRole(role) {
   if (role === "SecEng") return "Security Engineer";
+  return role || "Unknown";
+}
+
+function displayRoleCompact(role) {
+  if (role === "SecEng" || role === "SecurityEngineer") return "SecEng";
   return role || "Unknown";
 }
 
@@ -528,6 +527,33 @@ function VoteModal({ open, onClose, players, name, onVote }) {
             </button>
           ))}
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+function VoteProposalModal({ proposal, open, onRespond }) {
+  if (!proposal) return null;
+  const hasResponded = Boolean(proposal.hasResponded);
+
+  return (
+    <Modal open={open}>
+      <div className="modal center vote-modal vote-proposal-modal">
+        <h2>Vote Proposal</h2>
+        <p><strong>{proposal.callerName}</strong> wants to call the hacker vote.</p>
+        <p>This is the team's only formal vote. Proceed only if the table is ready.</p>
+        <div className="vote-proposal-count">
+          <span>ready to vote</span>
+          <strong>{proposal.approvalCount}/{proposal.threshold}</strong>
+        </div>
+        {hasResponded ? (
+          <p className="vote-response-note">You chose to {proposal.yourResponse === 'proceed' ? 'proceed' : 'delay'}. Waiting for the table.</p>
+        ) : (
+          <div className="vote-proposal-actions">
+            <button type="button" onClick={() => onRespond(true)}>Proceed</button>
+            <button type="button" onClick={() => onRespond(false)}>Delay Vote</button>
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -621,7 +647,6 @@ function TaskDetails({ task }) {
     <div className="task-detail-card">
       <div className="task-title-row">
         <div>
-          <span>{task.type || 'task'}</span>
           <h3>{task.name}</h3>
         </div>
         <div className="cost-chip-row">
@@ -644,24 +669,6 @@ function TaskDetails({ task }) {
           <li key={`${line}-${index}`}>{line}</li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-function TaskLeaderboard({ leaderboard = [] }) {
-  return (
-    <div className="task-leaderboard">
-      <div className="zone-heading">Task Leaderboard</div>
-      {leaderboard.length === 0 ? (
-        <p>No completed tasks yet.</p>
-      ) : (
-        leaderboard.map((entry, index) => (
-          <div key={entry.name} className="leaderboard-row">
-            <span>#{index + 1} {entry.name}</span>
-            <strong>{entry.tasksCompleted ?? 0}</strong>
-          </div>
-        ))
-      )}
     </div>
   );
 }
@@ -823,20 +830,20 @@ function GameInfoModal({ open, onClose }) {
           {tab === 'rules' ? (
             <div className="rules-copy">
               <RuleBlock title="Premise">
-                <p>One hidden Hacker is trying to compromise the system while the Security Engineers race to finish the project. The public board is built around five security lanes: Credentials, Social, Web, Network, and Physical. A lane is either open or defended.</p>
+                <p>One hidden Hacker is trying to compromise the system while the Security Engineers race to finish the project. The public board is built around five security Lanes: Credentials, Social, Web, Network, and Physical. A Lane is either open or defended.</p>
               </RuleBlock>
 
               <RuleBlock title="Players and Roles">
                 <RulesList>
                   <p><strong>4 to 5 players</strong> are required. One player is secretly assigned as the Hacker. Everyone else is a Security Engineer.</p>
                   <p><strong>Security Engineers</strong> win by completing the project or correctly voting out the Hacker. Engineers always draw from the Security deck.</p>
-                  <p><strong>The Hacker</strong> wins by reducing System Integrity to zero. At the start of each turn after the first, the Hacker secretly draws 2 cards in any combination from the Security and Hacker decks, then discards 1 card for cover and planning.</p>
+                  <p><strong>The Hacker</strong> wins by reducing System Integrity to zero. At the start of each turn after the first, the Hacker secretly draws 2 cards in any combination from the Security and Hacker decks. The Hacker may submit up to 2 cards per turn, but only 1 Hacker card and 1 Security card.</p>
                 </RulesList>
               </RuleBlock>
 
               <RuleBlock title="Turn Structure">
                 <RulesList>
-                  <p>Each active player has one task and a private hand. Each turn, players discuss, then each player secretly submits <strong>one card</strong> or passes.</p>
+                  <p>Each active player has one task and a private hand. Each turn, players discuss, then Security Engineers secretly submit <strong>one card</strong> or pass. The Hacker may submit up to <strong>two cards</strong>, with at most one Hacker card and one Security card.</p>
                   <p>When everyone has submitted, the System resolves emergency responses first, then hostile operations, defences, investigations, and tasks.</p>
                   <p>Hands are private. Players may claim, bluff, promise, and accuse, but they should not reveal screenshots or prove the exact contents of their hand.</p>
                 </RulesList>
@@ -844,23 +851,23 @@ function GameInfoModal({ open, onClose }) {
 
               <RuleBlock title="Lanes, Defences, and Tasks">
                 <RulesList>
-                  <p>There are five lanes: <strong>Credentials</strong>, <strong>Social</strong>, <strong>Web</strong>, <strong>Network</strong>, and <strong>Physical</strong>.</p>
-                  <p>Only three lanes can be defended at once. Defences are face-up and persist until replaced or sabotaged. They do not deplete when they block an attack.</p>
-                  <p>Tasks also belong to lanes. A task gives +1 project progress, or +2 if its lane is currently defended.</p>
+                  <p>There are five Lanes: <strong>Credentials</strong>, <strong>Social</strong>, <strong>Web</strong>, <strong>Network</strong>, and <strong>Physical</strong>.</p>
+                  <p>Only three Lanes can be defended at once. Defences are face-up and persist until replaced or sabotaged. They do not deplete when they block an attack.</p>
+                  <p>Tasks also belong to Lanes. A task can only be completed when its matching Lane is defended. Each completed task grants +1 Project Progress.</p>
                 </RulesList>
               </RuleBlock>
 
               <RuleBlock title="Attacks, Evidence, and Logs">
                 <RulesList>
-                  <p>Attacks target lanes. If the lane is open, most attacks remove 1 Integrity. DDoS instead cancels project progress for that turn. Zero-Day is a rare late-game attack that cannot be blocked.</p>
-                  <p>When a defence blocks an attack, the team gains 1 Evidence. Check Server Log lets a player privately check whether another player's submitted card this turn was hostile.</p>
+                  <p>Attacks target Lanes. If the Lane is open, most attacks remove 1 Integrity. DDoS instead cancels Project Progress for that turn. Zero-Day is a rare late-game attack that cannot be blocked.</p>
+                  <p>When a defence blocks an attack, the team gains 1 Evidence. Check Server Log costs 1 Evidence and privately checks whether another player has played a hostile card this cycle. At 5 Evidence, the Hacker's identity is revealed publicly.</p>
                   <p>Rapid Incident Response blocks one attack during the current turn only. It is discarded after use and never lingers into later turns.</p>
                 </RulesList>
               </RuleBlock>
 
               <RuleBlock title="Voting and Win Conditions">
                 <RulesList>
-                  <p>Security Engineers may call the formal vote from cycle 3 onward. The Hacker may vote, but only engineer votes count when deciding who is removed.</p>
+                  <p>Security Engineers may propose the formal vote from cycle 3 onward. A 4-player game needs 2 players ready to proceed; a 5-player game needs 3. If the table delays, the vote option remains available. Once the vote begins, the Hacker may vote, but only engineer votes count when deciding who is removed.</p>
                   <p>If the engineers remove the Hacker, they win. If they remove the wrong player, that player becomes a spectator and the formal vote is spent.</p>
                   <p>The Hacker wins if Integrity reaches zero. The engineers win if the project reaches its required progress first.</p>
                 </RulesList>
@@ -873,7 +880,7 @@ function GameInfoModal({ open, onClose }) {
               </RuleBlock>
 
               <RuleBlock title="Why Lanes Are Visible">
-                <p>Security is not just a pile of hidden shields. Teams need to understand which areas are protected and which areas are exposed. The visible lane board turns that idea into a readable game state: the Hacker sees where the openings are, but the engineers see those openings too.</p>
+                <p>Security is not just a pile of hidden shields. Teams need to understand which areas are protected and which areas are exposed. The visible Lane board turns that idea into a readable game state: the Hacker sees where the openings are, but the engineers see those openings too.</p>
               </RuleBlock>
 
               <RuleBlock title="Why Defences Persist">
@@ -915,7 +922,7 @@ function FinalResultsPanel({ gameState, logs }) {
       <div className="final-results-grid">
         <div><span>outcome</span><strong>{winner}</strong></div>
         <div><span>reason</span><strong>{reason}</strong></div>
-        <div><span>tasks</span><strong>{tasksCompleted}/{tasksRequired}</strong></div>
+        <div><span>Project Progress</span><strong>{tasksCompleted}/{tasksRequired}</strong></div>
         <div><span>integrity</span><strong>{system.integrityPoints ?? '?'}</strong></div>
         <div><span>eliminated</span><strong>{eliminated.length ? eliminated.join(', ') : 'None'}</strong></div>
         <div><span>log entries</span><strong>{logs.length}</strong></div>
@@ -939,7 +946,7 @@ function GameOverModal({ open, gameState, logs, onLobby, onClose }) {
         <p>{reason}</p>
 
         <div className="game-over-stats">
-          <div><span>tasks completed</span><strong>{tasksCompleted}/{tasksRequired}</strong></div>
+          <div><span>Project Progress</span><strong>{tasksCompleted}/{tasksRequired}</strong></div>
           <div><span>integrity</span><strong>{system.integrityPoints ?? '?'}</strong></div>
           <div><span>visible report entries</span><strong>{logs.length}</strong></div>
         </div>
@@ -1009,6 +1016,10 @@ export const Game = ({ socket, name, room, setRoom }) => {
     if (isEnded) setGameOverOpen(true);
   }, [isEnded]);
 
+  useEffect(() => {
+    if (gameState?.phase === 'voting') setVoteOpen(true);
+  }, [gameState?.phase]);
+
   const stagedCards = stagedIds
     .map((cardId) => selectableCards.find((card) => card.id === cardId) || submittedCards.find((card) => card.id === cardId))
     .filter(Boolean);
@@ -1016,11 +1027,8 @@ export const Game = ({ socket, name, room, setRoom }) => {
   const system = gameState?.system ?? {};
   const tasksCompleted = system.numTasksCompleted ?? Math.max(0, (system.numTasksRequired ?? 0) - (system.numTasksRemaining ?? 0));
   const tasksRequired = system.numTasksRequired ?? "?";
-  const taskLeaderboard = gameState?.taskLeaderboard ?? gameState?.players?.map((player) => ({
-    name: player.name,
-    tasksCompleted: player.tasksCompleted ?? 0,
-  })) ?? [];
-
+  const maxSubmitCards = maxSubmitCardsFor(you);
+  const voteProposal = gameState?.voteProposal ?? null;
   useEffect(() => {
     if (!socket || !name) {
       navigate("/");
@@ -1065,10 +1073,10 @@ export const Game = ({ socket, name, room, setRoom }) => {
       setDiscardIds((current) => current.filter((id) => (me?.cards ?? []).some((card) => card.id === id)));
     };
 
-    const onSubmitAck = ({ mustDiscard: needsDiscard, discardCount: count }) => {
+    const onSubmitAck = ({ mustDiscard: needsDiscard }) => {
       setStatus(
         needsDiscard
-          ? `Queue submitted. Discard ${count} card${count === 1 ? "" : "s"}.`
+          ? "Queue submitted. Finalise your hand before the cycle can continue."
           : "Queue submitted. Waiting for the rest of the table."
       );
     };
@@ -1078,8 +1086,8 @@ export const Game = ({ socket, name, room, setRoom }) => {
       setDiscardIds([]);
     };
 
-    const onHackerDrawAck = ({ discardCount: count }) => {
-      setStatus(`Draw complete. Discard ${count} card${count === 1 ? "" : "s"}, then submit your operation.`);
+    const onHackerDrawAck = () => {
+      setStatus("Draw complete. Submit your operation when ready.");
     };
 
     const onTurnResolved = (summary) => {
@@ -1111,7 +1119,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
 
     const onReconResult = (result) => {
       if (!result?.lanes) {
-        setReports((current) => [...current, "Recon result: no lane posture available."]);
+        setReports((current) => [...current, "Recon result: no Lane posture available."]);
         return;
       }
 
@@ -1119,7 +1127,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
         .filter((lane) => !lane.defended)
         .map((lane) => lane.label)
         .join(", ") || "none";
-      setReports((current) => [...current, `Recon result: open lanes are ${openLanes}.`]);
+      setReports((current) => [...current, `Recon result: open Lanes are ${openLanes}.`]);
     };
 
     const onServerLogResult = (result) => {
@@ -1130,12 +1138,24 @@ export const Game = ({ socket, name, room, setRoom }) => {
 
       setReports((current) => [
         ...current,
-        `Private server log result: ${result.targetName} submitted a ${result.hostile ? "hostile" : "non-hostile"} card this cycle.`,
+        `Private server log result: ${result.hostile ? `${result.targetName} has played a hostile card this cycle. They are the Hacker.` : `${result.targetName} has not played a hostile card this cycle.`}`,
       ]);
     };
 
     const onTaskReplaced = (result) => {
       setStatus(result?.ok ? "Task replaced." : result?.error || "Could not replace task.");
+    };
+
+    const onVoteProposed = ({ callerName } = {}) => {
+      setStatus(`${callerName || 'A player'} wants to call the vote.`);
+    };
+
+    const onVoteProposalUpdated = (proposal) => {
+      if (proposal) setStatus(`Vote proposal: ${proposal.approvalCount}/${proposal.threshold} ready to proceed.`);
+    };
+
+    const onVoteProposalDeferred = () => {
+      setStatus('Vote deferred. The option remains available.');
     };
 
     const onVoteStarted = () => {
@@ -1186,6 +1206,9 @@ export const Game = ({ socket, name, room, setRoom }) => {
     socket.on("recon-result", onReconResult);
     socket.on("server-log-result", onServerLogResult);
     socket.on("task-replaced", onTaskReplaced);
+    socket.on("vote-proposed", onVoteProposed);
+    socket.on("vote-proposal-updated", onVoteProposalUpdated);
+    socket.on("vote-proposal-deferred", onVoteProposalDeferred);
     socket.on("vote-started", onVoteStarted);
     socket.on("vote-cast", onVoteCast);
     socket.on("vote-resolved", onVoteResolved);
@@ -1208,6 +1231,9 @@ export const Game = ({ socket, name, room, setRoom }) => {
       socket.off("recon-result", onReconResult);
       socket.off("server-log-result", onServerLogResult);
       socket.off("task-replaced", onTaskReplaced);
+      socket.off("vote-proposed", onVoteProposed);
+      socket.off("vote-proposal-updated", onVoteProposalUpdated);
+      socket.off("vote-proposal-deferred", onVoteProposalDeferred);
       socket.off("vote-started", onVoteStarted);
       socket.off("vote-cast", onVoteCast);
       socket.off("vote-resolved", onVoteResolved);
@@ -1252,17 +1278,33 @@ export const Game = ({ socket, name, room, setRoom }) => {
     const card = selectableCards.find((candidate) => candidate.id === cardId);
     if (!card) return;
 
-    if (!canAffordCard(you, card)) {
-      showAffordanceWarning(affordabilityMessage(you, card));
+    if (!isTaskLaneDefended(system, card)) {
+      showAffordanceWarning(laneRequirementMessage(card));
       return;
     }
 
-    if (stagedIds.length >= 1) {
-      setError("Core mode allows one card per turn.");
+    const stateMessage = stateRequirementMessage(system, card);
+    if (stateMessage) {
+      showAffordanceWarning(stateMessage);
+      return;
+    }
+
+    const ruleMessage = submissionRuleMessage(you, stagedCards, card);
+    if (ruleMessage) {
+      setError(ruleMessage);
       return;
     }
 
     setStagedIds((current) => [...current, cardId]);
+    if (card.type === 'defence') {
+      setCardTargets((current) => ({
+        ...current,
+        [card.id]: {
+          ...(current[card.id] || {}),
+          defenceSlotIndex: current[card.id]?.defenceSlotIndex ?? defaultDefenceSlot(system, card),
+        },
+      }));
+    }
     setError("");
   };
 
@@ -1276,15 +1318,14 @@ export const Game = ({ socket, name, room, setRoom }) => {
   };
 
   const toggleDiscard = (cardId) => {
-    if (!mustDiscard) return;
+    if (!mustDiscard || !cardId) return;
 
-    setDiscardIds((current) =>
-      current.includes(cardId)
-        ? current.filter((id) => id !== cardId)
-        : current.length < discardCount
-          ? [...current, cardId]
-          : current
-    );
+    setDiscardIds((current) => {
+      if (discardCount <= 1) return [cardId];
+      if (current.includes(cardId)) return current.filter((id) => id !== cardId);
+      if (current.length < discardCount) return [...current, cardId];
+      return [...current.slice(1), cardId];
+    });
   };
 
   const submitCards = () => {
@@ -1300,7 +1341,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
 
   const submitDiscard = () => {
     if (discardIds.length !== discardCount) {
-      setError(`Select exactly ${discardCount} card${discardCount === 1 ? "" : "s"} to discard.`);
+      setError("Select the required card before continuing.");
       return;
     }
 
@@ -1323,6 +1364,10 @@ export const Game = ({ socket, name, room, setRoom }) => {
 
   const callVote = () => {
     socket.emit("call-vote", { room: activeRoom, playerName: name });
+  };
+
+  const respondVoteProposal = (proceed) => {
+    socket.emit("respond-vote-proposal", { room: activeRoom, playerName: name, proceed });
   };
 
   const castVote = (accusedName) => {
@@ -1398,24 +1443,19 @@ export const Game = ({ socket, name, room, setRoom }) => {
 
       {isEnded && <FinalResultsPanel gameState={gameState} logs={logs} />}
 
-      <HackerDrawPanel you={you} onChoose={chooseHackerDraw} />
-
       <section className="game-dashboard">
         <div className="game-panel identity-panel">
           <div className="panel-heading">
             <span>// player</span>
-            <strong>{displayRole(you.role)}</strong>
+            <strong>{displayRoleCompact(you.role)}</strong>
           </div>
 
           <h2>{you.name}</h2>
 
           <div className="skill-grid">
-            <div className="skill-cell skill-time"><span>ROLE</span><strong>{displayRole(you.role)}</strong></div>
-            <div className="skill-cell skill-comm"><span>EVIDENCE</span><strong>{system.evidence ?? 0}</strong></div>
+            <div className="skill-cell skill-time"><span>ROLE</span><strong>{displayRoleCompact(you.role)}</strong></div>
             <div className="skill-cell skill-prog"><span>HAND</span><strong>{hand.length}/5</strong></div>
-            {you.awaitingDrawChoice && (
-              <div className="skill-cell skill-sep"><span>DRAW</span><strong>CHOOSE</strong></div>
-            )}
+
           </div>
         </div>
 
@@ -1428,8 +1468,8 @@ export const Game = ({ socket, name, room, setRoom }) => {
           <div className="system-grid">
             <div><span>cycle</span><strong>{gameState.turnNumber}</strong></div>
             <div><span>integrity</span><strong>{system.integrityPoints ?? "?"}</strong></div>
-            <div><span>tasks</span><strong>{tasksCompleted}/{tasksRequired}</strong></div>
-            <div><span>evidence</span><strong>{system.evidence ?? 0}</strong></div>
+            <div><span>Project Progress</span><strong>{tasksCompleted}/{tasksRequired}</strong></div>
+            <div><span>evidence</span><strong>{system.evidence ?? 0}/{system.evidenceRevealThreshold ?? 5}</strong></div>
           </div>
 
           <div className="zone-heading">Security Lanes</div>
@@ -1446,8 +1486,13 @@ export const Game = ({ socket, name, room, setRoom }) => {
               <button type="button" onClick={replaceTask} disabled={!canAct || you.replacedTaskThisTurn || stagedIds.includes(task?.id)}>
                 Replace
               </button>
-              <button type="button" onClick={() => task && stageCard(task.id)} disabled={!canAct || !task}>
-                {stagedIds.includes(task?.id) ? "Unqueue Task" : "Queue Task"}
+              <button
+                type="button"
+                className={task && !isTaskLaneDefended(system, task) ? "task-unavailable-button" : ""}
+                onClick={() => task && stageCard(task.id)}
+                disabled={!canAct || !task}
+              >
+                {!task ? "No Task" : !isTaskLaneDefended(system, task) ? "Lane Undefended" : stagedIds.includes(task?.id) ? "Unqueue Task" : "Queue Task"}
               </button>
             </div>
           </div>
@@ -1456,10 +1501,10 @@ export const Game = ({ socket, name, room, setRoom }) => {
             <div className="task-card-row task-card-row-detailed">
               <CardTile
                 card={task}
-                onInspect={setPreviewCard}
                 compact
+                showDetails={false}
                 selected={stagedIds.includes(task.id)}
-                draggable={canAct && !mustDiscard && !stagedIds.includes(task.id)}
+                draggable={canAct && !mustDiscard && !stagedIds.includes(task.id) && isTaskLaneDefended(system, task)}
                 disabled={!canAct || mustDiscard}
                 onClick={() => stageCard(task.id)}
                 onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
@@ -1469,14 +1514,12 @@ export const Game = ({ socket, name, room, setRoom }) => {
           ) : (
             <TaskDetails task={null} />
           )}
-
-          <TaskLeaderboard leaderboard={taskLeaderboard} />
         </div>
       </section>
 
       <section className="game-table">
         <section
-          className={`game-panel drop-zone ${dragOver ? "drag-over" : ""}`}
+          className={`game-panel command-panel drop-zone ${dragOver ? "drag-over" : ""}`}
           onDragOver={(e) => {
             e.preventDefault();
             if (canAct && !mustDiscard) setDragOver(true);
@@ -1488,64 +1531,132 @@ export const Game = ({ socket, name, room, setRoom }) => {
             stageCard(e.dataTransfer.getData("text/plain"));
           }}
         >
-          <div className="panel-heading">
-            <span>// system queue</span>
-            <strong>{visibleQueueCards.length}/1</strong>
-          </div>
+          <div className="command-panel-grid">
+            <div className="queue-section">
+              <div className="panel-heading compact-heading">
+                <span>// system queue</span>
+                <strong>{visibleQueueCards.length}/{maxSubmitCards}</strong>
+              </div>
 
-          {visibleQueueCards.length === 0 ? (
-            <div className="drop-placeholder">
-              {hasSubmitted
-                ? "Queue submitted."
-                : mustDiscard
-                  ? "Discard down to five cards."
-                  : "Drag one card here, then submit — or pass."}
-            </div>
-          ) : (
-            <div className="staged-cards">
-              {visibleQueueCards.map((card) => (
-                <button
-                  key={card.id}
-                  className={`staged-chip ${hasSubmitted ? "locked" : ""}`}
-                  type="button"
-                  disabled={hasSubmitted}
-                  onClick={() => !hasSubmitted && removeStagedCard(card.id)}
-                >
-                  {card.name}{hasSubmitted ? " // queued" : " ×"}
-                </button>
+              {visibleQueueCards.length === 0 ? (
+                <div className="drop-placeholder compact-placeholder">
+                  {hasSubmitted
+                    ? "Queue submitted."
+                    : mustDiscard
+                      ? "Choose a card from your hand before continuing."
+                      : "Drop card here — or pass."}
+                </div>
+              ) : (
+                <div className="staged-cards">
+                  {visibleQueueCards.map((card) => (
+                    <button
+                      key={card.id}
+                      className={`staged-chip ${hasSubmitted ? "locked" : ""}`}
+                      type="button"
+                      disabled={hasSubmitted}
+                      onClick={() => !hasSubmitted && removeStagedCard(card.id)}
+                    >
+                      {card.name}{hasSubmitted ? " // queued" : " ×"}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!hasSubmitted && stagedCards.some((card) => card.name === "Check Server Log") && (
+                <div className="target-selector-row">
+                  <label htmlFor="log-target">Log target</label>
+                  <select
+                    id="log-target"
+                    value={cardTargets[stagedCards.find((card) => card.name === "Check Server Log")?.id]?.targetPlayerName || "__random__"}
+                    onChange={(event) => {
+                      const logCard = stagedCards.find((card) => card.name === "Check Server Log");
+                      if (!logCard) return;
+                      setCardTargets((current) => ({
+                        ...current,
+                        [logCard.id]: { ...(current[logCard.id] || {}), targetPlayerName: event.target.value },
+                      }));
+                    }}
+                  >
+                    <option value="__random__">Random</option>
+                    {gameState.players
+                      .filter((player) => player.name !== name && !player.isEliminated && !player.isSpectator)
+                      .map((player) => <option key={player.name} value={player.name}>{player.name}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {!hasSubmitted && stagedCards.filter((card) => card.type === 'defence').map((card) => (
+                <DefenceSlotSelector
+                  key={`slot-${card.id}`}
+                  card={card}
+                  system={system}
+                  value={cardTargets[card.id]?.defenceSlotIndex}
+                  onChange={(defenceSlotIndex) => setCardTargets((current) => ({
+                    ...current,
+                    [card.id]: { ...(current[card.id] || {}), defenceSlotIndex },
+                  }))}
+                />
               ))}
             </div>
-          )}
 
-          {!hasSubmitted && stagedCards.some((card) => card.name === "Check Server Log") && (
-            <div className="target-selector-row">
-              <label htmlFor="log-target">Log target</label>
-              <select
-                id="log-target"
-                value={cardTargets[stagedCards.find((card) => card.name === "Check Server Log")?.id]?.targetPlayerName || ""}
-                onChange={(event) => {
-                  const logCard = stagedCards.find((card) => card.name === "Check Server Log");
-                  if (!logCard) return;
-                  setCardTargets((current) => ({
-                    ...current,
-                    [logCard.id]: { targetPlayerName: event.target.value },
-                  }));
-                }}
-              >
-                <option value="">auto</option>
-                {gameState.players
-                  .filter((player) => player.name !== name && !player.isEliminated && !player.isSpectator)
-                  .map((player) => <option key={player.name} value={player.name}>{player.name}</option>)}
-              </select>
+            <div className="hand-section embedded-hand-section">
+              <div className="panel-heading compact-heading">
+                <span>// hand</span>
+
+                <div className="hand-actions">
+                  <span className={`hand-count ${hand.length > 5 ? "over" : ""}`}>{hand.length}/5</span>
+                  {mustDiscard ? (
+                    <button type="button" onClick={submitDiscard}>Confirm</button>
+                  ) : (
+                    <button type="button" onClick={submitCards} disabled={!canAct}>
+                      {stagedIds.length === 0 ? "Pass Turn" : stagedIds.length > 1 ? "Submit Cards" : "Submit Card"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className={`hand-body ${you?.awaitingDrawChoice ? "with-draw-menu" : ""}`}>
+                <div className={`hand-capacity-shell ${hand.length > 5 ? "over-limit" : ""}`}>
+                  <div className="hand-slot-guide" aria-hidden="true">
+                    {Array.from({ length: 5 }).map((_, index) => <span key={index} />)}
+                  </div>
+                  <div className="hand-strip command-hand-strip">
+                    {hand.length === 0 ? (
+                      <p>No cards in hand.</p>
+                    ) : (
+                      hand.map((card) => {
+                        const selected = mustDiscard
+                          ? discardIds.includes(card.id)
+                          : stagedIds.includes(card.id);
+
+                        return (
+                          <CardTile
+                            key={card.id}
+                            card={card}
+                            onInspect={setPreviewCard}
+                            selected={selected}
+                            animate={newDrawCardIds.includes(card.id)}
+                            disabled={isEnded || isSpectator || (!mustDiscard && hasSubmitted)}
+                            draggable={!mustDiscard && canAct}
+                            onClick={() => (mustDiscard ? toggleDiscard(card.id) : stageCard(card.id))}
+                            onDragStart={(e) => e.dataTransfer.setData("text/plain", card.id)}
+                          />
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+                <HackerDrawPanel you={you} onChoose={chooseHackerDraw} />
+              </div>
             </div>
-          )}
+          </div>
         </section>
 
         <section className="game-panel players-panel">
           <div className="panel-heading">
             <span>// players</span>
             {isEngineer && !gameState.votingExpired && !isEnded && !isSpectator && (gameState.turnNumber >= (gameState.voteUnlockTurn ?? 3)) && (
-              <button type="button" onClick={callVote}>Call Vote</button>
+              <button type="button" onClick={callVote} disabled={Boolean(voteProposal)}>Call Vote</button>
             )}
           </div>
 
@@ -1556,69 +1667,25 @@ export const Game = ({ socket, name, room, setRoom }) => {
                 className={`agent-row ${player.name === name ? "self" : ""} ${player.isEliminated || player.isSpectator ? "eliminated" : ""}`}
               >
                 <div className="agent-row-main">
-                  <span>{player.name}</span>
+                  <div className="agent-name-line">
+                    <span>{player.name}</span>
+                    <PlayerProgressChips player={player} />
+                  </div>
                   <strong>
                     {player.isEliminated || player.isSpectator
                       ? "spectating"
                       : player.name === name
                         ? displayRole(player.role)
-                        : `${player.handSize} cards`}
+                        : player.hackerRevealed || player.role === 'Hacker'
+                          ? 'Hacker revealed'
+                          : "active"}
                     {player.submittedThisTurn && !player.isEliminated && !player.isSpectator ? " // locked" : ""}
                   </strong>
                 </div>
-                <PlayerSkillChips player={player} />
               </div>
             ))}
           </div>
         </section>
-      </section>
-
-      <section className="game-panel hand-panel">
-        <div className="panel-heading">
-          <span>{you?.awaitingDrawChoice ? "// choose draw" : mustDiscard ? `// discard ${discardCount}` : "// hand"}</span>
-
-          <div className="hand-actions">
-            <span className={`hand-count ${hand.length > 5 ? "over" : ""}`}>{hand.length}/5</span>
-            {mustDiscard ? (
-              <button type="button" onClick={submitDiscard}>Discard Selected</button>
-            ) : (
-              <button type="button" onClick={submitCards} disabled={!canAct}>
-                {stagedIds.length === 0 ? "Pass Turn" : "Submit Card"}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className={`hand-capacity-shell ${hand.length > 5 ? "over-limit" : ""}`}>
-          <div className="hand-slot-guide" aria-hidden="true">
-            {Array.from({ length: 5 }).map((_, index) => <span key={index} />)}
-          </div>
-          <div className="hand-strip">
-            {hand.length === 0 ? (
-            <p>No cards in hand.</p>
-          ) : (
-            hand.map((card) => {
-              const selected = mustDiscard
-                ? discardIds.includes(card.id)
-                : stagedIds.includes(card.id);
-
-              return (
-                <CardTile
-                  key={card.id}
-                  card={card}
-                  onInspect={setPreviewCard}
-                  selected={selected}
-                  animate={newDrawCardIds.includes(card.id)}
-                  disabled={isEnded || isSpectator || (!mustDiscard && hasSubmitted)}
-                  draggable={!mustDiscard && canAct}
-                  onClick={() => (mustDiscard ? toggleDiscard(card.id) : stageCard(card.id))}
-                  onDragStart={(e) => e.dataTransfer.setData("text/plain", card.id)}
-                />
-              );
-            })
-            )}
-          </div>
-        </div>
       </section>
 
       <LogModal open={logOpen} onClose={() => setLogOpen(false)} logs={logs} />
@@ -1640,11 +1707,16 @@ export const Game = ({ socket, name, room, setRoom }) => {
         onClose={closeIncidentReport}
       />
 
+      <VoteProposalModal
+        proposal={voteProposal}
+        open={Boolean(voteProposal) && !isEnded && !isSpectator}
+        onRespond={respondVoteProposal}
+      />
+
       <VoteModal
         open={voteOpen}
         onClose={() => setVoteOpen(false)}
         players={gameState.players}
-        name={name}
         onVote={castVote}
       />
     </main>

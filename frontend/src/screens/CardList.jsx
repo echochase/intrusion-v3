@@ -18,13 +18,10 @@ const taskCardModules = import.meta.glob("/src/assets/task-cards/*.{png,jpg,jpeg
 });
 
 const actionNames = new Set([
-  "insider sabotage",
   "reconnaissance",
-  "socialise with tech team",
   "check server log",
   "rapid incident response",
   "threat mitigation protocol",
-  "skill swap",
 ]);
 
 const normalise = (name = "") => name

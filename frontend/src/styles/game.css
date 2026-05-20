@@ -132,7 +132,7 @@
 .skill-grid,
 .system-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
 }
 
@@ -385,6 +385,17 @@ button:disabled {
   opacity: 0.45;
 }
 
+.panel-button-row button.task-unavailable-button {
+  border-color: rgba(255, 64, 129, 0.38);
+  background: rgba(255, 64, 129, 0.08);
+  color: var(--red);
+}
+
+.panel-button-row button.task-unavailable-button:hover {
+  border-color: rgba(255, 64, 129, 0.7);
+  box-shadow: 0 0 18px rgba(255, 64, 129, 0.14);
+}
+
 @media (max-width: 1000px) {
   .game-dashboard,
   .game-table {
@@ -450,16 +461,7 @@ button:disabled {
   color: var(--yellow);
 }
 
-.skill-cell.skill-comm,
-.agent-skill-chip.skill-comm {
-  border-color: rgba(0, 212, 255, 0.28);
-  background: rgba(0, 212, 255, 0.07);
-}
 
-.skill-cell.skill-comm strong,
-.agent-skill-chip.skill-comm {
-  color: var(--cyan);
-}
 
 .skill-cell.skill-prog,
 .agent-skill-chip.skill-prog {
@@ -472,27 +474,10 @@ button:disabled {
   color: var(--green);
 }
 
-.skill-cell.skill-sep {
-  border-color: rgba(255, 64, 129, 0.3);
-  background: rgba(255, 64, 129, 0.07);
-}
 
-.skill-cell.skill-sep strong {
-  color: var(--red);
-}
 
-.skill-cell.skill-pending {
-  box-shadow: 0 0 24px rgba(0, 255, 136, 0.1);
-}
 
-.skill-arrow {
-  color: var(--text-muted);
-  margin: 0 0.25rem;
-}
 
-.skill-next {
-  text-shadow: 0 0 12px currentColor;
-}
 
 .zone-heading {
   margin: 1rem 0 0.45rem;
@@ -722,23 +707,8 @@ button:disabled {
   text-transform: uppercase;
 }
 
-.cost-chip.skill-time {
-  border-color: rgba(255, 170, 0, 0.35);
-  background: rgba(255, 170, 0, 0.08);
-  color: var(--yellow);
-}
 
-.cost-chip.skill-comm {
-  border-color: rgba(0, 212, 255, 0.35);
-  background: rgba(0, 212, 255, 0.08);
-  color: var(--cyan);
-}
 
-.cost-chip.skill-prog {
-  border-color: rgba(0, 255, 136, 0.35);
-  background: rgba(0, 255, 136, 0.08);
-  color: var(--green);
-}
 
 .cost-free {
   border-color: rgba(0, 255, 136, 0.28);
@@ -926,7 +896,7 @@ button:disabled {
   }
 }
 
-/* Task section polish and leaderboard */
+/* Task section polish */
 .task-card-row-detailed {
   grid-template-columns: 92px minmax(0, 1fr);
   align-items: stretch;
@@ -997,36 +967,6 @@ button:disabled {
 
 .task-effect-list li + li {
   margin-top: 0.25rem;
-}
-
-.task-leaderboard {
-  margin-top: 1rem;
-}
-
-.leaderboard-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid rgba(0, 255, 136, 0.08);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.leaderboard-row + .leaderboard-row {
-  margin-top: 0.4rem;
-}
-
-.leaderboard-row span {
-  color: var(--text-bright);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.leaderboard-row strong {
-  color: var(--green);
-  font-family: 'Orbitron', sans-serif;
 }
 
 /* End-of-turn Incident Report */
@@ -1682,4 +1622,446 @@ button:disabled {
   font-size: 0.65rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+/* ── Compact board polish: queue + hand share the command space ─────── */
+@media (min-width: 1001px) {
+  .game-page {
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.85rem;
+  }
+
+  .game-header {
+    flex: 0 0 auto;
+    padding: 0.7rem 1rem;
+  }
+
+  .game-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .game-header-actions button {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.7rem;
+  }
+
+  .game-banner {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .hacker-draw-panel {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0.65rem;
+  }
+
+  .game-dashboard,
+  .game-table {
+    gap: 0.65rem;
+    margin-top: 0;
+  }
+
+  .game-dashboard {
+    flex: 0 0 auto;
+    grid-template-columns: 0.78fr 1.55fr 1fr;
+    align-items: start;
+  }
+
+  .game-table {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 2fr) minmax(250px, 0.7fr);
+    align-items: stretch;
+  }
+
+  .game-panel {
+    padding: 0.65rem;
+  }
+
+  .panel-heading {
+    margin-bottom: 0.55rem;
+    font-size: 0.62rem;
+  }
+
+  .compact-heading {
+    margin-bottom: 0.42rem;
+  }
+
+  .skill-grid,
+  .system-grid {
+    gap: 0.42rem;
+  }
+
+  .skill-grid div,
+  .system-grid div {
+    gap: 0.15rem;
+    padding: 0.45rem 0.55rem;
+  }
+
+  .skill-grid strong,
+  .system-grid strong {
+    font-size: 0.92rem;
+  }
+
+  .zone-heading {
+    margin: 0.55rem 0 0.28rem;
+    font-size: 0.56rem;
+  }
+
+  .lane-board {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .lane-row {
+    min-height: 48px;
+    padding: 0.42rem;
+  }
+
+  .lane-name {
+    font-size: 0.56rem;
+    margin-bottom: 0.12rem;
+  }
+
+  .lane-row strong {
+    font-size: 0.58rem;
+  }
+
+  .lane-row small {
+    font-size: 0.58rem;
+    line-height: 1.1;
+  }
+
+  .task-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  .task-card-row-detailed {
+    grid-template-columns: 76px minmax(0, 1fr);
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .task-card-row-detailed .play-card.compact {
+    flex-basis: 76px;
+  }
+
+  .task-detail-card {
+    padding: 0.55rem;
+    gap: 0.38rem;
+  }
+
+  .task-title-row h3 {
+    font-size: 0.78rem;
+    line-height: 1.15;
+  }
+
+  .task-description,
+  .task-effect-list {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  .task-feature-chip,
+  .cost-chip {
+    font-size: 0.5rem;
+    padding: 0.18rem 0.3rem;
+  }
+
+
+  .command-panel {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .command-panel-grid {
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0.55rem;
+  }
+
+  .queue-section {
+    min-height: 0;
+  }
+
+  .embedded-hand-section {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .drop-zone {
+    min-height: 0;
+  }
+
+  .drop-placeholder {
+    min-height: 44px;
+  }
+
+  .compact-placeholder {
+    min-height: 40px;
+    font-size: 0.7rem;
+  }
+
+  .staged-cards {
+    min-height: 40px;
+    align-items: center;
+  }
+
+  .hand-capacity-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: 0.35rem;
+    padding: 0.52rem;
+  }
+
+  .hand-capacity-shell::before {
+    display: none;
+  }
+
+  .hand-slot-guide {
+    inset: 0.52rem;
+    grid-template-columns: repeat(5, minmax(86px, 118px));
+    gap: 0.55rem;
+  }
+
+  .hand-slot-guide span {
+    min-height: 150px;
+  }
+
+  .hand-strip.command-hand-strip {
+    min-height: 0;
+    height: 168px;
+    padding: 0.15rem 0.1rem 0.45rem;
+    gap: 0.55rem;
+  }
+
+  .command-hand-strip .play-card {
+    flex-basis: 118px;
+  }
+
+  .command-hand-strip .play-card:hover,
+  .command-hand-strip .play-card.selected {
+    transform: translateY(-4px);
+  }
+
+  .players-panel {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .players-panel .agent-list {
+    max-height: calc(100% - 2.2rem);
+    overflow: auto;
+    gap: 0.35rem;
+  }
+
+  .agent-row {
+    padding: 0.45rem 0.55rem;
+  }
+
+  .agent-skill-chip {
+    min-width: auto;
+    padding: 0.2rem 0.35rem;
+    font-size: 0.58rem;
+  }
+}
+
+.defence-zone {
+  gap: 0.35rem;
+}
+
+.defence-slot.text-only {
+  min-height: 34px;
+  padding: 0.42rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: left;
+  cursor: default;
+  appearance: none;
+}
+
+button.defence-slot.text-only {
+  cursor: pointer;
+}
+
+.defence-slot.text-only .defence-slot-label {
+  color: var(--text-muted);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.defence-slot.text-only strong {
+  color: var(--green);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.64rem;
+  letter-spacing: 0.05em;
+  line-height: 1.15;
+}
+
+.defence-slot.empty.text-only strong,
+.defence-slot.hidden-card.text-only strong {
+  color: var(--text-muted);
+}
+
+.task-card-row-detailed .play-card .play-card-details {
+  display: none;
+}
+
+/* Latest compact player/task/draw polish */
+.agent-row {
+  align-items: stretch;
+  flex-direction: row;
+  gap: 0;
+}
+
+.agent-row-main {
+  width: 100%;
+}
+
+.agent-name-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.agent-name-line > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-name-line .agent-skills {
+  flex: 0 0 auto;
+}
+
+.agent-name-line .agent-skill-chip {
+  min-width: auto;
+  padding: 0.18rem 0.38rem;
+  font-size: 0.52rem;
+}
+
+.task-title-row h3 {
+  margin-top: 0;
+}
+
+.task-title-row > div:first-child {
+  min-width: 0;
+}
+
+.hand-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.hand-body.with-draw-menu {
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 190px);
+  align-items: stretch;
+}
+
+.embedded-draw-menu {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 170, 0, 0.38);
+  background: rgba(255, 170, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: inset 0 0 24px rgba(255, 170, 0, 0.025);
+}
+
+.compact-draw-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+}
+
+.compact-draw-options button {
+  width: 100%;
+  padding: 0.55rem 0.5rem;
+}
+
+@media (min-width: 1001px) {
+  .hand-body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .hand-body.with-draw-menu {
+    grid-template-columns: minmax(0, 1fr) 176px;
+  }
+
+  .embedded-draw-menu {
+    margin-top: 0.35rem;
+    padding: 0.55rem;
+  }
+
+  .embedded-draw-menu .panel-heading {
+    margin-bottom: 0.45rem;
+  }
+
+  .compact-draw-options button {
+    padding: 0.45rem 0.4rem;
+    font-size: 0.62rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .hand-body.with-draw-menu {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vote-proposal-modal {
+  max-width: 520px;
+}
+
+.vote-proposal-count {
+  margin: 1rem auto;
+  width: min(220px, 100%);
+  border: 1px solid rgba(0, 255, 136, 0.24);
+  background: rgba(0, 255, 136, 0.05);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.vote-proposal-count span,
+.vote-response-note {
+  color: var(--text-muted);
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.68rem;
+}
+
+.vote-proposal-count strong {
+  color: var(--text-bright);
+  font-size: 1.35rem;
+}
+
+.vote-proposal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }

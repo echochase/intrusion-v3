@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Container, Paper, IconButton, Tooltip, Avatar,
+  Container, IconButton, Tooltip, Avatar,
   Box, Button, Stack,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from "@mui/material";

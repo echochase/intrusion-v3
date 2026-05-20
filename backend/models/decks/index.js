@@ -74,16 +74,11 @@ class HackerDeck extends Deck {
   constructor() { super('hacker'); }
 
   _buildPlayPile() {
-    // Multiple lane attacks give the solo hacker enough agency against open/defended lanes.
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       this.playPile.push(
-        new attacks.ShoulderSurfing(),
-        new attacks.BruteForce(),
-        new attacks.AuthenticatorTheft(),
-        new attacks.SIMSwapping(),
+        new attacks.CredentialTheft(),
         new attacks.Phishing(),
-        new attacks.StoredXSS(),
-        new attacks.ReflectedXSS(),
+        new attacks.XSSAttack(),
         new attacks.DDoS(),
         new attacks.PhysicalDataTheft(),
       );
@@ -92,10 +87,7 @@ class HackerDeck extends Deck {
     this.playPile.push(new attacks.ZeroDay());
 
     for (let i = 0; i < 3; i++) {
-      this.playPile.push(
-        new actions.InsiderSabotage(),
-        new actions.Reconnaissance(),
-      );
+      this.playPile.push(new actions.Reconnaissance());
     }
   }
 }

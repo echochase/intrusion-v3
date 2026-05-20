@@ -1,30 +1,12 @@
 const Card = require('../Card');
 
-class InsiderSabotage extends Card {
-  constructor(owner = null) {
-    super({
-      name: 'Insider Sabotage',
-      type: 'action',
-      description: 'Quietly undermine the team from inside the company.',
-      effectDescription: 'Hacker action: disables the oldest active defence. If no defence is active, cancels 1 project progress this turn instead.',
-      owner,
-      hackerOnly: true,
-      isHostile: true,
-    });
-  }
-
-  onProcess(system) {
-    system.resolveInsiderSabotage(this);
-  }
-}
-
 class Reconnaissance extends Card {
   constructor(owner = null) {
     super({
       name: 'Reconnaissance',
       type: 'action',
-      description: 'Take time to observe how the team is working before striking.',
-      effectDescription: 'Hacker action: privately reveals the current lane plan and grants a cleaner next draw by discarding one extra unwanted card if needed.',
+      description: 'Check out what the company did to protect the system. And how you can counter those defences.',
+      effectDescription: 'Hacker action: privately review the current defended and open Lanes.',
       owner,
       hackerOnly: true,
       isHostile: true,
@@ -36,29 +18,19 @@ class Reconnaissance extends Card {
   }
 }
 
-class SocialiseWithTechTeam extends Card {
-  constructor(owner = null) {
-    super({
-      name: 'Socialise with Tech Team',
-      type: 'action',
-      description: 'Unused card hook: build social leverage inside the team.',
-      effectDescription: 'Not used in the live rules.',
-      owner,
-      hackerOnly: true,
-      isHostile: true,
-    });
-  }
-}
-
 class CheckServerLog extends Card {
   constructor(owner = null) {
     super({
       name: 'Check Server Log',
       type: 'action',
-      description: 'Review recent system activity and look for hostile behaviour.',
-      effectDescription: 'Choose one player. Privately learn whether their submitted card this turn was hostile.',
+      description: 'Best to check the server log for any suspicious activities.',
+      effectDescription: 'Costs 1 Evidence. Choose one player, or Random. Privately learn whether that player has played a hostile card this cycle.',
       owner,
     });
+  }
+
+  isPlayable(system) {
+    return (system?.evidence || 0) >= 1;
   }
 
   onProcess(system) {
@@ -71,8 +43,8 @@ class RapidIncidentResponseAction extends Card {
     super({
       name: 'Rapid Incident Response',
       type: 'action',
-      description: 'An emergency containment effort. It helps right now, but it is not a standing defence.',
-      effectDescription: 'Blocks one attack this turn only, then is discarded. Does not linger.',
+      description: 'Prevention is better than a cure, but sometimes we need a quick cure to stop further damage!',
+      effectDescription: 'Nullify an attack that is occurring in the same turn. DDoS attacks take priority. Otherwise, if there are multiple attacks during this turn, neutralise the first one. Priority: compute this card first amongst all other cards.',
       owner,
     });
   }
@@ -87,7 +59,7 @@ class ThreatMitigationProtocol extends Card {
     super({
       name: 'Threat Mitigation Protocol',
       type: 'action',
-      description: 'Coordinate the team around the most urgent exposed lane.',
+      description: 'Hey, that doesn’t look right! Stop that request from going through!',
       effectDescription: 'Gain 1 Evidence. Evidence can help the team investigate suspicious submissions.',
       owner,
     });
@@ -99,9 +71,7 @@ class ThreatMitigationProtocol extends Card {
 }
 
 module.exports = {
-  InsiderSabotage,
   Reconnaissance,
-  SocialiseWithTechTeam,
   CheckServerLog,
   RapidIncidentResponseAction,
   ThreatMitigationProtocol,

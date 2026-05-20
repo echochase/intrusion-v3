@@ -1,6 +1,18 @@
 const Card = require('../Card');
 const { Lane, laneLabel } = require('../../defines');
 
+const TaskDomainLabels = {
+  [Lane.CREDENTIALS]: 'Credential',
+  [Lane.SOCIAL]: 'Social',
+  [Lane.WEB]: 'Web',
+  [Lane.NETWORK]: 'Network',
+  [Lane.PHYSICAL]: 'Physical',
+};
+
+function taskDomainLabel(lane) {
+  return TaskDomainLabels[lane] || laneLabel(lane);
+}
+
 class CoreTask extends Card {
   constructor({ name, lane, description, owner = null }) {
     super({
@@ -9,9 +21,13 @@ class CoreTask extends Card {
       lane,
       category: `${laneLabel(lane)} Task`,
       description,
-      effectDescription: `Complete this ${laneLabel(lane)} task for +1 project progress. If the ${laneLabel(lane)} lane is defended, it is worth +2 progress instead.`,
+      effectDescription: `Can only be completed when ${taskDomainLabel(lane)} is defended. Grants +1 Project Progress.`,
       owner,
     });
+  }
+
+  isPlayable(system) {
+    return Boolean(system?.isLaneDefended?.(this.lane));
   }
 
   onProcess(system) {
@@ -62,15 +78,7 @@ class CompanyMixerEvent extends CoreTask {
 }
 
 // Extra task assets kept in the codebase for future rule sets; not used by the live core task deck.
-class CollaborativeDebuggingSession extends CoreTask { constructor(owner = null) { super({ name: 'Collaborative Debugging Session', lane: Lane.WEB, owner, description: 'Unused task asset kept for future rules.' }); } }
-class InvestorPitchPresentation extends CoreTask { constructor(owner = null) { super({ name: 'Investor Pitch Presentation', lane: Lane.SOCIAL, owner, description: 'Unused task asset kept for future rules.' }); } }
-class LateNightDeadlineSprint extends CoreTask { constructor(owner = null) { super({ name: 'Late-Night Deadline Sprint', lane: Lane.NETWORK, owner, description: 'Unused task asset kept for future rules.' }); } }
-class ProductDevelopment extends CoreTask { constructor(owner = null) { super({ name: 'Product Development', lane: Lane.WEB, owner, description: 'Unused task asset kept for future rules.' }); } }
-class ProjectPlanning extends CoreTask { constructor(owner = null) { super({ name: 'Project Planning', lane: Lane.SOCIAL, owner, description: 'Unused task asset kept for future rules.' }); } }
-class TeamLeadership extends CoreTask { constructor(owner = null) { super({ name: 'Team Leadership', lane: Lane.SOCIAL, owner, description: 'Unused task asset kept for future rules.' }); } }
-
 module.exports = {
-  CoreTask,
   ServerMaintenance,
   CompanyMeeting,
   ModelTraining,
@@ -78,10 +86,5 @@ module.exports = {
   HazardReport,
   CorporateAnnouncement,
   CompanyMixerEvent,
-  CollaborativeDebuggingSession,
-  InvestorPitchPresentation,
-  LateNightDeadlineSprint,
-  ProductDevelopment,
-  ProjectPlanning,
-  TeamLeadership,
+  CoreTask,
 };

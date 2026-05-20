@@ -2,14 +2,14 @@ const Card = require('../Card');
 const { Lane, laneLabel, CoreAttackByLane } = require('../../defines');
 
 class LaneDefence extends Card {
-  constructor({ name, lane, description, owner = null }) {
+  constructor({ name, lane, description, effectDescription, owner = null }) {
     super({
       name,
       type: 'defence',
       lane,
       category: `${laneLabel(lane)} Defence`,
       description,
-      effectDescription: `Defends the ${laneLabel(lane)} lane. Blocks ${CoreAttackByLane[lane] || 'matching attacks'} and makes matching tasks worth +2 progress instead of +1.`,
+      effectDescription: effectDescription || `Defends the ${laneLabel(lane)} Lane. Blocks ${CoreAttackByLane[lane] || 'matching attacks'} and lets matching tasks resolve for +1 Project Progress.`,
       owner,
     });
   }
@@ -25,7 +25,8 @@ class TwoFactorAuthentication extends LaneDefence {
       name: 'Two-Factor Authentication',
       lane: Lane.CREDENTIALS,
       owner,
-      description: 'Require a second proof of identity so stolen or guessed passwords are less useful.',
+      description: 'Enforce 2-factor authentication. Nothing too fancy, just a temp code sent to your phone during login.',
+      effectDescription: 'Defends the Credential Lane. Blocks Credential Theft and lets matching Credential tasks resolve for +1 Project Progress.',
     });
   }
 }
@@ -36,7 +37,8 @@ class EmployeeAwareness extends LaneDefence {
       name: 'Employee Awareness',
       lane: Lane.SOCIAL,
       owner,
-      description: 'Train employees to recognise suspicious messages, requests, and manipulation.',
+      description: 'Increase everyone’s cyber-awareness about what phishing attacks look like and how they operate!',
+      effectDescription: 'Defends the Social Lane. Blocks Phishing and lets matching Social tasks resolve for +1 Project Progress.',
     });
   }
 }
@@ -47,7 +49,8 @@ class InputSanitisation extends LaneDefence {
       name: 'Input Sanitisation',
       lane: Lane.WEB,
       owner,
-      description: 'Treat user input as data rather than code to reduce injection and script attacks.',
+      description: 'Are you crazy? Sanitise the user input first before allowing it into your code! Escape, whitelist, do whatever it takes!',
+      effectDescription: 'Defends the Web Lane. Blocks XSS Attack and lets matching Web tasks resolve for +1 Project Progress.',
     });
   }
 }
@@ -58,7 +61,8 @@ class AntiDDoSDefence extends LaneDefence {
       name: 'Anti-DDoS Defence',
       lane: Lane.NETWORK,
       owner,
-      description: 'Filter and absorb traffic floods so legitimate work can keep moving.',
+      description: 'Hire a DDoS Mitigation Service at the ready. Comes with traffic monitoring, behavioural analysis, web application firewalls, all the good stuff.',
+      effectDescription: 'Defends the Network Lane. Blocks DDoS Attack and lets matching Network tasks resolve for +1 Project Progress.',
     });
   }
 }
@@ -69,19 +73,8 @@ class SecurityDetail extends LaneDefence {
       name: 'Security Detail',
       lane: Lane.PHYSICAL,
       owner,
-      description: 'Protect the workplace and reduce the risk of physical access turning into a breach.',
-    });
-  }
-}
-
-// Kept in the files for future expansion, but not used by the live core decks.
-class SecureHashingAndSalting extends LaneDefence {
-  constructor(owner = null) {
-    super({
-      name: 'Secure Hashing & Salting',
-      lane: Lane.CREDENTIALS,
-      owner,
-      description: 'Unused card hook: make stolen password databases much harder to exploit.',
+      description: 'Hire a team of security guards to maintain physical security on campus and prevent theft.',
+      effectDescription: 'Defends the Physical Lane. Blocks Physical Data Theft and lets matching Physical tasks resolve for +1 Project Progress.',
     });
   }
 }
@@ -90,7 +83,6 @@ module.exports = {
   AntiDDoSDefence,
   EmployeeAwareness,
   InputSanitisation,
-  SecureHashingAndSalting,
   SecurityDetail,
   TwoFactorAuthentication,
   LaneDefence,

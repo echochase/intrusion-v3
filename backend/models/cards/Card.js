@@ -51,6 +51,8 @@ class Card {
       hackerOnly: this.hackerOnly,
       isHostile: this.isHostile,
       targetPlayerName: this.targetPlayerName || null,
+      sourceDeck: this.sourceDeck || null,
+      submissionKind: this.submissionKind || (this.hackerOnly || this.type === 'attack' ? 'hacker' : 'security'),
     };
   }
 }
