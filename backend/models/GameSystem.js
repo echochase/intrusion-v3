@@ -8,6 +8,10 @@ function displayCardName(card) {
   return card?.name || 'Unknown Operation';
 }
 
+function delta(after, before) {
+  return (Number(after) || 0) - (Number(before) || 0);
+}
+
 class GameSystem {
   constructor(numPlayers) {
     this.integrityPoints = 4;
@@ -67,11 +71,17 @@ class GameSystem {
     this.processes = orderedQueue;
     this.currentMaxProcesses = orderedQueue.length;
 
-    for (const card of this.processes) {
+    const resolutionDetails = [];
+
+    for (const [index, card] of this.processes.entries()) {
       const beforeIntegrity = this.integrityPoints;
       const beforeDefenceCount = this.defenceCards.filter(Boolean).length;
       const beforeEvidence = this.evidence;
       const beforeTasks = this.numTasks;
+      const beforeRapidResponses = this.rapidIncidentResponses;
+      const beforeTaskProgressCancelled = this.taskProgressCancelled;
+      const beforeDefenceSlots = this._debugDefenceSlots();
+      const beforeLanes = this.laneStates();
 
       this.currentCard = card;
       this.currentCardEvents = [];
@@ -80,13 +90,14 @@ class GameSystem {
       this.currentCard = null;
       this.currentCardEvents = [];
 
+      const afterDefenceCount = this.defenceCards.filter(Boolean).length;
       const event = this._makeIncidentEvent({
         turnNum,
         card,
         beforeIntegrity,
         afterIntegrity: this.integrityPoints,
         beforeDefenceCount,
-        afterDefenceCount: this.defenceCards.filter(Boolean).length,
+        afterDefenceCount,
         beforeEvidence,
         afterEvidence: this.evidence,
         beforeTasks,
@@ -95,7 +106,45 @@ class GameSystem {
       });
       this.incidentEvents.push(event);
       this._log(turnNum, card, 'resolved', event);
-      this.processedThisTurn.push({ card, outcome: 'resolved' });
+
+      const outcome = event?.outcome || 'resolved';
+      this.processedThisTurn.push({ card, outcome });
+      resolutionDetails.push({
+        sequence: index + 1,
+        card: this._debugCard(card),
+        outcome,
+        title: event?.title || null,
+        message: event?.message || null,
+        eventKinds: cardEvents.map(item => item.kind),
+        events: cardEvents.map(item => this._debugEvent(item)),
+        stateBefore: {
+          integrity: beforeIntegrity,
+          evidence: beforeEvidence,
+          tasksRemaining: beforeTasks,
+          defenceCount: beforeDefenceCount,
+          rapidIncidentResponses: beforeRapidResponses,
+          taskProgressCancelled: beforeTaskProgressCancelled,
+          defenceSlots: beforeDefenceSlots,
+          lanes: beforeLanes,
+        },
+        stateAfter: {
+          integrity: this.integrityPoints,
+          evidence: this.evidence,
+          tasksRemaining: this.numTasks,
+          defenceCount: afterDefenceCount,
+          rapidIncidentResponses: this.rapidIncidentResponses,
+          taskProgressCancelled: this.taskProgressCancelled,
+          defenceSlots: this._debugDefenceSlots(),
+          lanes: this.laneStates(),
+        },
+        deltas: {
+          integrity: delta(this.integrityPoints, beforeIntegrity),
+          evidence: delta(this.evidence, beforeEvidence),
+          tasksRemaining: delta(this.numTasks, beforeTasks),
+          defences: delta(afterDefenceCount, beforeDefenceCount),
+          rapidIncidentResponses: delta(this.rapidIncidentResponses, beforeRapidResponses),
+        },
+      });
     }
 
     if (this.processedThisTurn.length === 0) {
@@ -118,17 +167,26 @@ class GameSystem {
 
     this.turnDebug = {
       turnNum,
-      orderedQueue: orderedQueue.map(card => this._debugCard(card)),
-      processed: this.processedThisTurn.map(({ card, outcome }) => ({ ...this._debugCard(card), outcome })),
+      submittedCardsByPlayer: this.submissionSnapshot,
+      orderedQueue: orderedQueue.map((card, index) => ({ sequence: index + 1, ...this._debugCard(card) })),
+      resolutionDetails,
+      processed: this.processedThisTurn.map(({ card, outcome }, index) => ({ sequence: index + 1, ...this._debugCard(card), outcome })),
       unprocessed: [],
       capacity: this.currentMaxProcesses,
       defenceSlots: this._debugDefenceSlots(),
       lanes: this.laneStates(),
       integrityPoints: this.integrityPoints,
+      tasksRemaining: this.numTasks,
+      totalTasks: this.totalTasks,
       evidence: this.evidence,
       evidenceRevealThreshold: EVIDENCE_REVEAL_THRESHOLD,
       hackerRevealed: this.hackerRevealed,
       projectProgressGainedThisTurn: this.projectProgressGainedThisTurn,
+      taskProgressCancelled: this.taskProgressCancelled,
+      completedTaskOwners: [...this.completedTaskOwners],
+      replacedDefences: (this.replacedDefencesThisTurn || []).map(card => this._debugCard(card)),
+      serverLogResults: [...(this.serverLogResults || [])],
+      reconResult: this.reconResult,
     };
 
     this.processes = [];
@@ -237,9 +295,12 @@ class GameSystem {
   }
 
   resolveReconnaissance(card) {
-    const lanes = this.laneStates();
-    this.reconResult = { name: 'Lane posture reviewed', lanes };
-    this.currentCardEvents.push({ kind: 'reconnaissance', lanes });
+    this.reconResult = {
+      name: 'Reconnaissance report',
+      ownerName: card.owner?.name || null,
+      players: [],
+    };
+    this.currentCardEvents.push({ kind: 'reconnaissance' });
   }
 
   resolveCheckServerLog(card) {
@@ -266,7 +327,7 @@ class GameSystem {
     }
 
     const submitted = targetName ? (this.submissionSnapshot[targetName] || []) : [];
-    const hostile = submitted.some(entry => entry.isHostile || entry.type === 'attack' || entry.submissionKind === 'hacker');
+    const hostile = submitted.some(entry => entry.isHostile || entry.type === 'attack');
     const result = { ownerName, targetName, hostile, checked: Boolean(targetName), insufficientEvidence: false };
     this.serverLogResults.push(result);
     this.currentCardEvents.push({ kind: 'server-log-check', ...result });
@@ -475,9 +536,10 @@ class GameSystem {
       message = `${ownerName || 'A player'} coordinated threat mitigation. The team gained ${Math.max(0, evidenceGained) || 1} Evidence.${hackerRevealed ? ' Evidence reached 5, so the Hacker is now publicly exposed.' : ''}`;
       outcome = 'evidence';
     } else if (card.name === 'Reconnaissance') {
-      title = 'Suspicious observation';
-      message = `Someone spent the cycle observing the security posture instead of making visible progress.`;
+      title = 'Reconnaissance complete';
+      message = 'A private reconnaissance report will be shown to the Hacker.';
       outcome = 'reconnaissance';
+      revealOwner = false;
     }
 
     return {
@@ -524,15 +586,28 @@ class GameSystem {
     };
   }
 
+  _debugEvent(event) {
+    if (!event || typeof event !== 'object') return event;
+    const copy = { ...event };
+    if (copy.defenceCard) copy.defenceCard = this._safeCardSummary(copy.defenceCard);
+    if (copy.lane && !copy.laneLabel) copy.laneLabel = laneLabel(copy.lane);
+    return copy;
+  }
+
   _debugCard(card) {
+    if (!card) return null;
     return {
       id: card.id,
       name: card.name,
       type: card.type,
       lane: card.lane || null,
+      laneLabel: card.lane ? laneLabel(card.lane) : null,
+      category: card.category || null,
       owner: card.owner?.name || null,
       ownerRole: card.owner?.returnType?.() || 'unknown',
-      hostile: card.isHostile,
+      hostile: Boolean(card.isHostile),
+      hackerOnly: Boolean(card.hackerOnly),
+      sourceDeck: card.sourceDeck || null,
     };
   }
 

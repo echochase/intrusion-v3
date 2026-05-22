@@ -209,6 +209,7 @@ class Game {
     }
 
     this._discardResolvedCards();
+    this._attachReconHandSnapshot();
     this._printTurnDebug();
 
     for (const player of this.players) {
@@ -479,6 +480,27 @@ class Game {
     return { winner, reason };
   }
 
+  _attachReconHandSnapshot() {
+    if (!this.system.reconResult) return;
+    this.system.reconResult.players = this.players.map(player => ({
+      name: player.name,
+      role: player.returnType?.() || player.role || 'unknown',
+      cards: (player.cards || []).map(card => ({
+        id: card.id,
+        name: card.name,
+        type: card.type,
+        lane: card.lane || null,
+        laneLabel: card.lane ? require('./defines').laneLabel(card.lane) : null,
+        category: card.category || null,
+        description: card.description,
+        effectDescription: card.effectDescription,
+        sourceDeck: card.sourceDeck || null,
+      })),
+    }));
+
+    if (this.system.turnDebug) this.system.turnDebug.reconResult = this.system.reconResult;
+  }
+
   _turnSummary(log, win, resolvedTurnNumber = this.turnNumber) {
     return {
       turnNumber: resolvedTurnNumber,
@@ -571,15 +593,103 @@ class Game {
   _printTurnDebug() {
     const debug = this.system.turnDebug;
     if (!debug) return;
-    console.log(`===== TURN ${debug.turnNum} =====`);
-    console.log('Submitted cards:');
-    for (const { owner, cards } of this.lastTurnSubmissionDebug || []) {
-      console.log(`  ${owner}: ${cards.length ? cards.map(card => `${card.name} (${card.type})`).join(', ') : 'pass'}`);
+
+    const line = '='.repeat(96);
+    const subline = '-'.repeat(96);
+    const fmtCard = (card) => {
+      if (!card) return 'Unknown';
+      const lane = card.laneLabel || card.lane || 'no lane';
+      return `${card.name} (${card.type}, ${lane})`;
+    };
+    const fmtSubmission = (entry) => `${entry.name} [${entry.type}${entry.lane ? `/${entry.lane}` : ''}${entry.isHostile ? ', hostile' : ''}]`;
+    const deltaParts = (deltas = {}) => {
+      const parts = [];
+      if (deltas.integrity) parts.push(`integrity ${deltas.integrity}`);
+      if (deltas.evidence) parts.push(`evidence ${deltas.evidence > 0 ? '+' : ''}${deltas.evidence}`);
+      if (deltas.tasksRemaining) parts.push(`tasks ${deltas.tasksRemaining}`);
+      if (deltas.defences) parts.push(`defences ${deltas.defences > 0 ? '+' : ''}${deltas.defences}`);
+      return parts.join(', ') || 'no board delta';
+    };
+    const eventText = (event) => {
+      switch (event.kind) {
+        case 'rapid-response-active':
+          return 'Rapid Incident Response armed: next attack in resolved order will be nullified.';
+        case 'attack-nullified-by-action':
+          return `RIR nullified ${event.attackName} on ${event.laneLabel || event.lane}.`;
+        case 'attack-blocked':
+          return `BLOCKED by ${event.defenceName} on ${event.laneLabel || event.lane}; evidence +${event.evidenceGained || 0}.`;
+        case 'task-progress-cancelled':
+          return 'DDoS cancelled all task progress for this turn.';
+        case 'integrity-loss':
+          return `Integrity ${event.before} -> ${event.after}.`;
+        case 'defence-installed':
+          return `${event.defenceName} installed in slot ${event.slotIndex}${event.replacedName ? `, replacing ${event.replacedName}` : ''}.`;
+        case 'task-completed':
+          return `Task on ${event.laneLabel || event.lane}: ${event.defended ? 'defended' : 'undefended'}, progress +${event.progress}.`;
+        case 'server-log-check':
+          if (event.insufficientEvidence) return `${event.ownerName} could not check logs: insufficient Evidence.`;
+          return `${event.ownerName} checked ${event.targetName || 'nobody'}: ${event.checked ? (event.hostile ? 'hostile card found' : 'no hostile card') : 'not checked'}.`;
+        case 'evidence-gained':
+          return `Evidence +${event.amount}.`;
+        case 'hacker-revealed-by-evidence':
+          return `Evidence reached ${event.evidence}; Hacker revealed.`;
+        case 'reconnaissance':
+          return 'Recon queued a private hand report for the Hacker.';
+        default:
+          return event.kind;
+      }
+    };
+
+    console.log(`\n${line}`);
+    console.log(`TURN ${debug.turnNum} DEBUG`);
+    console.log(line);
+
+    console.log('SUBMISSIONS');
+    const submitted = Object.entries(debug.submittedCardsByPlayer || {});
+    if (submitted.length === 0) console.log('  none');
+    for (const [owner, cards] of submitted) {
+      const role = this.getPlayer(owner)?.returnType?.() || 'unknown';
+      console.log(`  ${owner} [${role}]: ${cards.length ? cards.map(fmtSubmission).join('; ') : 'PASS'}`);
     }
-    console.log('Processed:');
-    for (const entry of debug.processed || []) console.log(`  ${entry.owner} [${entry.ownerRole}] -> ${entry.name} (${entry.type})`);
-    console.log(`Integrity: ${debug.integrityPoints}; Evidence: ${debug.evidence}`);
-    console.log('====================');
+
+    console.log(subline);
+    console.log('RESOLUTION ORDER');
+    if (!debug.orderedQueue?.length) console.log('  none');
+    for (const entry of debug.orderedQueue || []) {
+      console.log(`  ${entry.sequence}. ${entry.owner || 'Unknown'} [${entry.ownerRole || 'unknown'}] -> ${fmtCard(entry)}`);
+    }
+
+    console.log(subline);
+    console.log('RESOLUTION RESULTS');
+    if (!debug.resolutionDetails?.length) console.log('  no cards resolved');
+    for (const details of debug.resolutionDetails || []) {
+      const card = details.card || {};
+      console.log(`  ${details.sequence}. ${card.owner || 'Unknown'} -> ${fmtCard(card)} => ${details.outcome}; ${deltaParts(details.deltas)}`);
+      for (const event of details.events || []) console.log(`     - ${eventText(event)}`);
+    }
+
+    console.log(subline);
+    if (debug.reconResult?.players?.length) {
+      console.log('PRIVATE RECON HAND SNAPSHOT');
+      for (const player of debug.reconResult.players) {
+        const cards = (player.cards || []).map(card => card.name).join(', ') || 'empty hand';
+        console.log(`  ${player.name}: ${cards}`);
+      }
+    }
+    if (debug.serverLogResults?.length) {
+      console.log('PRIVATE SERVER LOGS');
+      for (const result of debug.serverLogResults) {
+        console.log(`  ${result.ownerName} -> ${result.targetName || 'none'}: ${result.checked ? (result.hostile ? 'HOSTILE' : 'clean') : (result.insufficientEvidence ? 'insufficient Evidence' : 'not checked')}`);
+      }
+    }
+    if (debug.replacedDefences?.length) {
+      console.log(`REPLACED DEFENCES: ${debug.replacedDefences.map(fmtCard).join('; ')}`);
+    }
+
+    const slots = (debug.defenceSlots || []).map(slot => slot.empty ? `[${slot.index}: empty]` : `[${slot.index}: ${slot.name}/${slot.lane}]`).join(' ');
+    console.log(`FINAL: integrity=${debug.integrityPoints}, evidence=${debug.evidence}, tasks=${debug.tasksRemaining}/${debug.totalTasks}, progressThisTurn=${debug.projectProgressGainedThisTurn}, taskProgressCancelled=${debug.taskProgressCancelled}, hackerRevealed=${debug.hackerRevealed}`);
+    console.log(`DEFENCES: ${slots}`);
+    console.log(`${line}\n`);
   }
 
   _resolveVote() {

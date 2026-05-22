@@ -702,6 +702,57 @@ function IntegrityLoss({ page }) {
   );
 }
 
+function ReconReportModal({ report, onClose }) {
+  const players = report?.players || [];
+
+  return (
+    <Modal open={Boolean(report)} onClose={onClose}>
+      <div className="recon-shell">
+        <div className="recon-panel">
+          <div className="incident-header">
+            <div>
+              <span className="header-eyebrow">private reconnaissance</span>
+              <h2>Player hands revealed</h2>
+            </div>
+            <button type="button" onClick={onClose}>Close</button>
+          </div>
+
+          <p className="recon-note">Visible only to the Hacker. This snapshot is taken at the end of the resolved turn.</p>
+
+          <div className="recon-grid">
+            {players.map((player) => (
+              <section key={player.name} className="recon-player-box">
+                <div className="recon-player-heading">
+                  <strong>{player.name}</strong>
+                  <span>{(player.cards || []).length} cards</span>
+                </div>
+
+                {(player.cards || []).length === 0 ? (
+                  <p className="recon-empty">empty hand</p>
+                ) : (
+                  <div className="recon-card-list">
+                    {player.cards.map((card) => (
+                      <button
+                        key={card.id || `${player.name}-${card.name}`}
+                        type="button"
+                        className="recon-card-chip"
+                        title={card.effectDescription || card.description || card.name}
+                      >
+                        <strong><TextWithHighlightedCards text={card.name} preferred={[card.name, card.rawName]} /></strong>
+                        <span>{card.type}{card.laneLabel ? ` // ${card.laneLabel}` : ''}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function IncidentReportModal({ open, pages, index, setIndex, onClose }) {
   const page = pages[index] || pages[0];
   const card = page?.card || null;
@@ -984,6 +1035,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
   const [incidentReportIndex, setIncidentReportIndex] = useState(0);
   const [infoOpen, setInfoOpen] = useState(false);
   const [affordanceWarning, setAffordanceWarning] = useState('');
+  const [reconReport, setReconReport] = useState(null);
 
   const previousHandIdsRef = useRef(null);
   const drawTimerRef = useRef(null);
@@ -1118,16 +1170,13 @@ export const Game = ({ socket, name, room, setRoom }) => {
     };
 
     const onReconResult = (result) => {
-      if (!result?.lanes) {
-        setReports((current) => [...current, "Recon result: no Lane posture available."]);
+      if (!result?.players) {
+        setReports((current) => [...current, "Recon result: no player hands were available."]);
         return;
       }
 
-      const openLanes = result.lanes
-        .filter((lane) => !lane.defended)
-        .map((lane) => lane.label)
-        .join(", ") || "none";
-      setReports((current) => [...current, `Recon result: open Lanes are ${openLanes}.`]);
+      setReconReport(result);
+      setReports((current) => [...current, "Recon result: player hands revealed privately."]);
     };
 
     const onServerLogResult = (result) => {
@@ -1698,6 +1747,8 @@ export const Game = ({ socket, name, room, setRoom }) => {
         onLobby={returnToLobbyAfterGame}
         onClose={() => setGameOverOpen(false)}
       />
+
+      <ReconReportModal report={reconReport} onClose={() => setReconReport(null)} />
 
       <IncidentReportModal
         open={incidentReportOpen}

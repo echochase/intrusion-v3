@@ -5,11 +5,11 @@ class Reconnaissance extends Card {
     super({
       name: 'Reconnaissance',
       type: 'action',
-      description: 'Check out what the company did to protect the system. And how you can counter those defences.',
-      effectDescription: 'Hacker action: privately review the current defended and open Lanes.',
+      description: 'Quietly review every player’s hand at the end of the cycle without raising suspicion.',
+      effectDescription: 'Hacker action: at the end of the turn, privately view each player’s hand in a 2x2 grid. This is not hostile.',
       owner,
       hackerOnly: true,
-      isHostile: true,
+      isHostile: false,
     });
   }
 

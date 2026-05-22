@@ -2065,3 +2065,81 @@ button.defence-slot.text-only {
   gap: 0.75rem;
   flex-wrap: wrap;
 }
+
+
+.recon-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.recon-panel {
+  width: min(760px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--panel, #111820);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+  border-radius: 24px;
+  padding: 1.25rem;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.recon-note {
+  margin: 0.5rem 0 1rem;
+  opacity: 0.78;
+}
+
+.recon-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.recon-player-box {
+  min-height: 180px;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 18px;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.recon-player-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.recon-player-heading span,
+.recon-empty,
+.recon-card-chip span {
+  opacity: 0.72;
+  font-size: 0.82rem;
+}
+
+.recon-card-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.recon-card-chip {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(255, 255, 255, 0.055);
+  color: inherit;
+  text-align: left;
+}
+
+.recon-card-chip strong,
+.recon-card-chip span {
+  display: block;
+}
+
+@media (max-width: 620px) {
+  .recon-grid {
+    grid-template-columns: 1fr;
+  }
+}
