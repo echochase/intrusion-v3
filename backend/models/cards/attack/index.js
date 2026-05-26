@@ -67,8 +67,8 @@ class DDoS extends LaneAttack {
       lane: Lane.NETWORK,
       category: 'Network',
       owner,
-      description: 'Purchase a botnet of compromised computers and overwhelm the system with requests.',
-      effectDescription: 'Attacks the Network Lane. Blocked by Anti-DDoS Defence. If the Network Lane is open, Project Progress from this turn is cancelled.',
+      description: 'Purchase a botnet of compromised computers and overwhelm the system with requests, limiting processing power until an Anti-DDoS countermeasure is deployed.',
+      effectDescription: 'Attacks the Network Lane. Blocked by Anti-DDoS Defence. If the Network Lane is open, processing power is limited by 2 cards while the DDoS is ongoing; deploy Anti-DDoS Defence as the countermeasure.',
     });
   }
 }
@@ -83,6 +83,27 @@ class PhysicalDataTheft extends LaneAttack {
       description: 'Sneak into the tech department and steal sensitive information. Don’t get caught!',
       effectDescription: 'Attacks the Physical Lane. Blocked by Security Detail.',
     });
+  }
+}
+
+
+class InsiderSabotage extends Card {
+  constructor(owner = null) {
+    super({
+      name: 'Insider Sabotage',
+      type: 'action',
+      lane: Lane.SPECIAL,
+      category: 'Sabotage',
+      description: 'Plant an insider in the security workflow to quietly occupy one defence slot without protecting any Lane.',
+      effectDescription: 'Hacker action: takes up a defence slot but does not block attacks or protect tasks. This is hostile.',
+      owner,
+      hackerOnly: true,
+      isHostile: true,
+    });
+  }
+
+  onProcess(system) {
+    system.installSabotageCard(this);
   }
 }
 
@@ -117,5 +138,6 @@ module.exports = {
   PhysicalDataTheft,
   XSSAttack,
   ZeroDay,
+  InsiderSabotage,
   LaneAttack,
 };

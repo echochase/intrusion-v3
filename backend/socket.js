@@ -109,9 +109,10 @@ function upsertSpectator(io, roomData, name, socket, sessionToken = null) {
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 module.exports = function(io) {
-  setInterval(() => {
+  const onlinePlayersInterval = setInterval(() => {
     io.emit('online-players', onlineState.count);
   }, 60000);
+  if (typeof onlinePlayersInterval.unref === 'function') onlinePlayersInterval.unref();
 
   io.on('connection', (socket) => {
     onlineState.count++;

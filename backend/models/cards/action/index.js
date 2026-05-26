@@ -5,8 +5,8 @@ class Reconnaissance extends Card {
     super({
       name: 'Reconnaissance',
       type: 'action',
-      description: 'Quietly review every player’s hand at the end of the cycle without raising suspicion.',
-      effectDescription: 'Hacker action: at the end of the turn, privately view each player’s hand in a 2x2 grid. This is not hostile.',
+      description: 'Quietly review the other players’ hands at the end of the cycle without raising suspicion.',
+      effectDescription: 'Hacker action: at the end of the turn, privately view each other player’s hand in a 2x2 grid. This is not hostile.',
       owner,
       hackerOnly: true,
       isHostile: false,

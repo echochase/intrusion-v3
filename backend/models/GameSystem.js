@@ -1,5 +1,5 @@
 const { LogEntry } = require('./game_logs');
-const { Lane, LaneLabels, CoreDefenceByLane, laneLabel } = require('./defines');
+const { Lane, CoreDefenceByLane, laneLabel } = require('./defines');
 
 const CORE_LANE_ORDER = [Lane.CREDENTIALS, Lane.SOCIAL, Lane.WEB, Lane.NETWORK, Lane.PHYSICAL];
 const EVIDENCE_REVEAL_THRESHOLD = 5;
@@ -17,20 +17,21 @@ class GameSystem {
     this.integrityPoints = 4;
     this.numTasks = numPlayers === 5 ? 10 : 8;
     this.totalTasks = this.numTasks;
-    this.maxProcesses = numPlayers;
-    this.currentMaxProcesses = numPlayers;
+    this.numPlayers = numPlayers;
+    this.maxProcesses = numPlayers + 1;
+    this.currentMaxProcesses = this.maxProcesses;
 
     this.processes = [];
     this.newProcesses = [];
-    this.pendingZone = [];
     this.defenceCards = [null, null, null];
     this.replacedDefencesThisTurn = [];
 
     this.rapidIncidentResponses = 0;
     this.evidence = 0;
-    this.taskProgressCancelled = false;
-    this.taskProgressPenalty = 0;
+    this.ddosDisruptionActive = false;
+    this.processCapacityReduction = 0;
     this.projectProgressGainedThisTurn = 0;
+    this.taskProgressCancelled = false;
     this.hackerArrested = false;
     this.hackerRevealed = false;
 
@@ -60,26 +61,29 @@ class GameSystem {
     this.submissionSnapshot = submissionSnapshot || {};
     this.replacedDefencesThisTurn = [];
     this.rapidIncidentResponses = 0;
-    this.taskProgressCancelled = false;
-    this.taskProgressPenalty = 0;
+    this.ddosDisruptionActive = false;
+    this.processCapacityReduction = 0;
     this.projectProgressGainedThisTurn = 0;
+    this.taskProgressCancelled = false;
 
     this.processes = [...this.newProcesses];
     this.newProcesses = [];
 
     const orderedQueue = this._orderedQueue(this.processes);
     this.processes = orderedQueue;
-    this.currentMaxProcesses = orderedQueue.length;
 
+    let activeProcessLimit = this.maxProcesses;
+    this.currentMaxProcesses = activeProcessLimit;
     const resolutionDetails = [];
+    let processedCount = 0;
 
-    for (const [index, card] of this.processes.entries()) {
+    for (let index = 0; index < this.processes.length && index < activeProcessLimit; index += 1) {
+      const card = this.processes[index];
       const beforeIntegrity = this.integrityPoints;
       const beforeDefenceCount = this.defenceCards.filter(Boolean).length;
       const beforeEvidence = this.evidence;
       const beforeTasks = this.numTasks;
       const beforeRapidResponses = this.rapidIncidentResponses;
-      const beforeTaskProgressCancelled = this.taskProgressCancelled;
       const beforeDefenceSlots = this._debugDefenceSlots();
       const beforeLanes = this.laneStates();
 
@@ -123,7 +127,6 @@ class GameSystem {
           tasksRemaining: beforeTasks,
           defenceCount: beforeDefenceCount,
           rapidIncidentResponses: beforeRapidResponses,
-          taskProgressCancelled: beforeTaskProgressCancelled,
           defenceSlots: beforeDefenceSlots,
           lanes: beforeLanes,
         },
@@ -133,7 +136,6 @@ class GameSystem {
           tasksRemaining: this.numTasks,
           defenceCount: afterDefenceCount,
           rapidIncidentResponses: this.rapidIncidentResponses,
-          taskProgressCancelled: this.taskProgressCancelled,
           defenceSlots: this._debugDefenceSlots(),
           lanes: this.laneStates(),
         },
@@ -145,6 +147,24 @@ class GameSystem {
           rapidIncidentResponses: delta(this.rapidIncidentResponses, beforeRapidResponses),
         },
       });
+
+      processedCount = index + 1;
+      const reducedCapacityEvent = cardEvents.find(event => event.kind === 'processing-capacity-reduced');
+      if (reducedCapacityEvent) {
+        activeProcessLimit = Math.min(activeProcessLimit, reducedCapacityEvent.afterLimit);
+        this.currentMaxProcesses = activeProcessLimit;
+      }
+    }
+
+    this.unprocessedThisTurn = orderedQueue.slice(processedCount).map(card => ({
+      card,
+      outcome: this.ddosDisruptionActive ? 'deferred-by-ddos' : 'deferred-by-capacity',
+    }));
+
+    for (const { card, outcome } of this.unprocessedThisTurn) {
+      const event = this._makeUnprocessedEvent({ turnNum, card, outcome });
+      this.incidentEvents.push(event);
+      this._logUnprocessed(turnNum, card, outcome, event);
     }
 
     if (this.processedThisTurn.length === 0) {
@@ -171,7 +191,7 @@ class GameSystem {
       orderedQueue: orderedQueue.map((card, index) => ({ sequence: index + 1, ...this._debugCard(card) })),
       resolutionDetails,
       processed: this.processedThisTurn.map(({ card, outcome }, index) => ({ sequence: index + 1, ...this._debugCard(card), outcome })),
-      unprocessed: [],
+      unprocessed: this.unprocessedThisTurn.map(({ card, outcome }, index) => ({ sequence: processedCount + index + 1, ...this._debugCard(card), outcome })),
       capacity: this.currentMaxProcesses,
       defenceSlots: this._debugDefenceSlots(),
       lanes: this.laneStates(),
@@ -183,7 +203,8 @@ class GameSystem {
       hackerRevealed: this.hackerRevealed,
       projectProgressGainedThisTurn: this.projectProgressGainedThisTurn,
       taskProgressCancelled: this.taskProgressCancelled,
-      completedTaskOwners: [...this.completedTaskOwners],
+      ddosDisruptionActive: this.ddosDisruptionActive,
+      processCapacityReduction: this.processCapacityReduction,
       replacedDefences: (this.replacedDefencesThisTurn || []).map(card => this._debugCard(card)),
       serverLogResults: [...(this.serverLogResults || [])],
       reconResult: this.reconResult,
@@ -198,13 +219,59 @@ class GameSystem {
     const rank = (card) => {
       if (card.name === 'Rapid Incident Response') return 0;
       if (card.type === 'attack') return 1;
-      if (card.type === 'defence') return 2;
+      if (card.type === 'defence' || card.name === 'Insider Sabotage') return 2;
       if (card.name === 'Check Server Log') return 3;
       if (card.type === 'task') return 4;
       return 5;
     };
 
     return [...cards].sort((a, b) => rank(a) - rank(b) || this._randomTie());
+  }
+
+  _safePublicCardName(card) {
+    if (!card || card.type === 'attack' || card.isHostile) return 'A hidden operation';
+    return displayCardName(card);
+  }
+
+  _makeUnprocessedEvent({ turnNum, card, outcome }) {
+    const publicName = this._safePublicCardName(card);
+    const isDdos = outcome === 'deferred-by-ddos';
+    const message = isDdos
+      ? `${publicName} attempted to process, but the process was stuck due to the ongoing DDoS attack.`
+      : `${publicName} attempted to process, but the system had no processing capacity left.`;
+
+    return {
+      id: `turn-${turnNum}-stuck-${this.incidentEvents.length}`,
+      turnNum,
+      type: 'system',
+      title: 'Process stuck',
+      message,
+      cardName: card && publicName !== 'A hidden operation' ? displayCardName(card) : null,
+      cardType: card && publicName !== 'A hidden operation' ? card.type : 'system',
+      outcome,
+      publicHidden: false,
+      ownerName: null,
+      lane: card?.lane || null,
+      lanes: Array.isArray(card?.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card?.lanes) ? [...card.lanes] : []),
+      requiredLanes: Array.isArray(card?.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card?.lanes) ? [...card.lanes] : []),
+      laneLabel: card?.lane ? laneLabel(card.lane) : null,
+      laneLabels: Array.isArray(card?.requiredLanes) ? card.requiredLanes.map(lane => laneLabel(lane)) : [],
+      progressPoints: card?.progressPoints || null,
+      integrityBefore: this.integrityPoints,
+      integrityAfter: this.integrityPoints,
+      integrityDelta: 0,
+      tasksBefore: this.numTasks,
+      tasksAfter: this.numTasks,
+      taskProgressDelta: 0,
+      evidenceBefore: this.evidence,
+      evidenceAfter: this.evidence,
+      evidenceDelta: 0,
+      defenceCountBefore: this.defenceCards.filter(Boolean).length,
+      defenceCountAfter: this.defenceCards.filter(Boolean).length,
+      coinFlips: [],
+      cardEvents: [{ kind: outcome, cardName: publicName }],
+      card: card && publicName !== 'A hidden operation' ? this._safeCardSummary(card) : null,
+    };
   }
 
   _randomTie() { return Math.random() < 0.5 ? -1 : 1; }
@@ -219,16 +286,25 @@ class GameSystem {
     return this.defenceCards.find(card => card?.lane === lane) || null;
   }
 
+  _slotForPlacement(card, { preferSameLane = true } = {}) {
+    const requestedSlot = Number.isInteger(card?.defenceSlotIndex) && card.defenceSlotIndex >= 0 && card.defenceSlotIndex < 3
+      ? card.defenceSlotIndex
+      : null;
+    if (requestedSlot !== null) return requestedSlot;
+
+    const existingSameLane = preferSameLane
+      ? this.defenceCards.findIndex(defence => defence?.lane === card?.lane)
+      : -1;
+    if (existingSameLane !== -1) return existingSameLane;
+
+    const firstEmpty = this.defenceCards.findIndex(defence => !defence);
+    return firstEmpty !== -1 ? firstEmpty : 0;
+  }
+
   installDefenceCard(card) {
     if (!card?.lane || card.lane === Lane.SPECIAL) return null;
 
-    const requestedSlot = Number.isInteger(card.defenceSlotIndex) && card.defenceSlotIndex >= 0 && card.defenceSlotIndex < 3
-      ? card.defenceSlotIndex
-      : null;
-    const existingSameLane = this.defenceCards.findIndex(defence => defence?.lane === card.lane);
-    const firstEmpty = this.defenceCards.findIndex(defence => !defence);
-    const slotIndex = requestedSlot ?? (existingSameLane !== -1 ? existingSameLane : (firstEmpty !== -1 ? firstEmpty : 0));
-
+    const slotIndex = this._slotForPlacement(card, { preferSameLane: true });
     const replaced = this.defenceCards[slotIndex] || null;
     this.defenceCards[slotIndex] = card;
 
@@ -244,14 +320,22 @@ class GameSystem {
     return replaced;
   }
 
-  removeOldestDefence() {
-    const index = this.defenceCards.findIndex(Boolean);
-    if (index === -1) return null;
-    const removed = this.defenceCards[index];
-    this.defenceCards[index] = null;
-    this.replacedDefencesThisTurn.push(removed);
-    return removed;
+  installSabotageCard(card) {
+    const slotIndex = this._slotForPlacement(card, { preferSameLane: false });
+    const replaced = this.defenceCards[slotIndex] || null;
+    this.defenceCards[slotIndex] = card;
+
+    if (replaced) this.replacedDefencesThisTurn.push(replaced);
+    this.currentCardEvents.push({
+      kind: 'sabotage-installed',
+      sabotageName: card.name,
+      replacedName: replaced?.name || null,
+      ownerName: card.owner?.name || null,
+      slotIndex,
+    });
+    return replaced;
   }
+
 
   resolveLaneAttack(card) {
     if (this.rapidIncidentResponses > 0) {
@@ -281,8 +365,16 @@ class GameSystem {
     }
 
     if (card.name === 'DDoS Attack') {
-      this.taskProgressCancelled = true;
-      this.currentCardEvents.push({ kind: 'task-progress-cancelled', lane: card.lane });
+      this.ddosDisruptionActive = true;
+      this.processCapacityReduction = Math.max(this.processCapacityReduction, 2);
+      const afterLimit = Math.max(0, this.maxProcesses - this.processCapacityReduction);
+      this.currentCardEvents.push({
+        kind: 'processing-capacity-reduced',
+        lane: card.lane,
+        beforeLimit: this.maxProcesses,
+        afterLimit,
+        reduction: this.processCapacityReduction,
+      });
       return;
     }
 
@@ -356,16 +448,14 @@ class GameSystem {
   completeTask(card = this.currentCard) {
     if (this.numTasks <= 0) return;
 
-    const lane = card?.lane;
-    const defended = this.isLaneDefended(lane);
-    let progress = defended ? 1 : 0;
+    const requiredLanes = Array.isArray(card?.requiredLanes) && card.requiredLanes.length
+      ? card.requiredLanes
+      : (Array.isArray(card?.lanes) && card.lanes.length ? card.lanes : [card?.lane].filter(Boolean));
+    const defendedLanes = requiredLanes.filter(lane => this.isLaneDefended(lane));
+    const allDefended = requiredLanes.length > 0 && defendedLanes.length === requiredLanes.length;
+    const baseProgress = Math.max(1, Number(card?.progressPoints) || 1);
+    let progress = allDefended ? baseProgress : 0;
 
-    if (this.taskProgressCancelled) progress = 0;
-    if (progress > 0 && this.taskProgressPenalty > 0) {
-      const absorbed = Math.min(progress, this.taskProgressPenalty);
-      progress -= absorbed;
-      this.taskProgressPenalty -= absorbed;
-    }
 
     const before = this.numTasks;
     this.numTasks = Math.max(0, this.numTasks - progress);
@@ -378,14 +468,20 @@ class GameSystem {
 
     this.currentCardEvents.push({
       kind: 'task-completed',
-      lane,
-      defended,
+      lane: requiredLanes[0] || card?.lane || null,
+      lanes: requiredLanes,
+      laneLabels: requiredLanes.map(lane => laneLabel(lane)),
+      defended: allDefended,
+      defendedLanes,
+      missingLanes: requiredLanes.filter(lane => !this.isLaneDefended(lane)),
       progress,
+      progressRequired: baseProgress,
       progressThisTurn: this.projectProgressGainedThisTurn,
       before,
       after: this.numTasks,
     });
   }
+
 
   _checkEvidenceThreshold() {
     if (!this.hackerRevealed && this.evidence >= EVIDENCE_REVEAL_THRESHOLD) {
@@ -405,6 +501,7 @@ class GameSystem {
         lane,
         label: laneLabel(lane),
         status: defence ? 'defended' : 'open',
+        ddosActive: lane === Lane.NETWORK && !defence && this.ddosDisruptionActive,
         defence: defence ? this._safeCardSummary(defence) : null,
         expectedDefence: CoreDefenceByLane[lane],
       };
@@ -418,28 +515,21 @@ class GameSystem {
       numTasksRequired: this.totalTasks,
       numTasksCompleted: Math.max(0, this.totalTasks - this.numTasks),
       projectProgressGainedThisTurn: this.projectProgressGainedThisTurn,
+      taskProgressCancelled: this.taskProgressCancelled,
       maxProcesses: this.maxProcesses,
       maxComputingCapacity: this.maxProcesses,
       computingCapacity: this.currentMaxProcesses,
+      ddosDisruptionActive: this.ddosDisruptionActive,
+      processCapacityReduction: this.processCapacityReduction,
       defenceCount: this.defenceCards.filter(Boolean).length,
       defenceSlots: this._defenceSlots(),
       lanes: this.laneStates(),
       evidence: this.evidence,
       evidenceRevealThreshold: EVIDENCE_REVEAL_THRESHOLD,
       hackerRevealed: this.hackerRevealed,
-      pendingZoneSize: 0,
-      pendingZoneCounts: { condition: 0, oneTurn: 0, twoTurn: 0 },
-      completedTaskOwners: [...this.completedTaskOwners],
     };
   }
 
-  toDebugJSON() {
-    return {
-      ...this.toPublicJSON(),
-      defenceCards: this.defenceCards.filter(Boolean).map(card => card.toJSON()),
-      processes: this.processes.map(card => card.toJSON()),
-    };
-  }
 
   _defenceSlots() {
     return this.defenceCards.map((card, index) => (card
@@ -455,6 +545,19 @@ class GameSystem {
       description: outcome,
       isHidden: card.type === 'attack' || card.isHostile,
       publicMessage: incidentEvent?.message || `${card.name} resolved.`,
+      incidentEvent,
+    }));
+  }
+
+  _logUnprocessed(turnNum, card, outcome, incidentEvent = null) {
+    const hidden = card?.type === 'attack' || card?.isHostile;
+    this.turnLog.push(new LogEntry({
+      turnNum,
+      type: hidden ? 'system' : (card?.type || 'system'),
+      name: hidden ? 'Hidden operation' : displayCardName(card),
+      description: outcome,
+      isHidden: false,
+      publicMessage: incidentEvent?.message || `${this._safePublicCardName(card)} failed to process.`,
       incidentEvent,
     }));
   }
@@ -477,7 +580,8 @@ class GameSystem {
     const nullified = cardEvents.find(event => event.kind === 'attack-nullified-by-action');
     const task = cardEvents.find(event => event.kind === 'task-completed');
     const installed = cardEvents.find(event => event.kind === 'defence-installed');
-    const cancelled = cardEvents.find(event => event.kind === 'task-progress-cancelled');
+    const sabotage = cardEvents.find(event => event.kind === 'sabotage-installed');
+    const capacityReduced = cardEvents.find(event => event.kind === 'processing-capacity-reduced');
     const logCheck = cardEvents.find(event => event.kind === 'server-log-check');
     const hackerRevealed = cardEvents.find(event => event.kind === 'hacker-revealed-by-evidence');
     const evidenceGained = afterEvidence - beforeEvidence;
@@ -497,14 +601,19 @@ class GameSystem {
       outcome = 'blocked';
     } else if (card.type === 'attack') {
       title = 'Attack succeeded';
-      if (card.name === 'DDoS Attack' && cancelled) {
-        message = `DDoS Attack hit the open Network Lane. Project Progress from this turn is cancelled.`;
+      if (card.name === 'DDoS Attack' && capacityReduced) {
+        message = `DDoS Attack hit the open Network Lane and overloaded the cycle. Processing capacity dropped from ${capacityReduced.beforeLimit} to ${capacityReduced.afterLimit} cards this turn.`;
       } else if (card.name === 'Zero-Day Attack') {
         message = `Zero-Day Attack exploited an unknown flaw and removed 1 integrity. It could not be blocked.`;
       } else {
         message = `${displayCardName(card)} hit the open ${laneLabel(card.lane)} Lane and removed 1 integrity.`;
       }
       outcome = 'breach';
+    } else if (sabotage) {
+      title = 'Defence slot sabotaged';
+      message = `A defence slot was occupied by Insider Sabotage. It does not protect any Lane.${sabotage.replacedName ? ` ${sabotage.replacedName} was replaced.` : ''}`;
+      outcome = 'sabotage-installed';
+      revealOwner = false;
     } else if (installed) {
       title = 'Defence installed';
       message = `${installed.defenceName} was installed. The ${laneLabel(installed.lane)} Lane is now defended.${installed.replacedName ? ` ${installed.replacedName} was replaced.` : ''}`;
@@ -512,12 +621,11 @@ class GameSystem {
       revealOwner = false;
     } else if (task) {
       title = 'Task completed';
+      const laneText = (task.laneLabels || [laneLabel(task.lane)]).join(' + ');
       if (task.progress > 0) {
-        message = `Someone completed ${displayCardName(card)} on the defended ${laneLabel(task.lane)} Lane: +${task.progress} Project Progress.`;
-      } else if (this.taskProgressCancelled) {
-        message = `Someone attempted to complete ${displayCardName(card)}, but Project Progress was cancelled this turn.`;
+        message = `Someone completed ${displayCardName(card)} with protected ${laneText} Lane${(task.laneLabels || []).length === 1 ? '' : 's'}: +${task.progress} Project Progress.`;
       } else if (!task.defended) {
-        message = `Someone attempted to complete ${displayCardName(card)}, but the ${laneLabel(task.lane)} Lane was undefended.`;
+        message = `Someone attempted to complete ${displayCardName(card)}, but the required Lane${(task.laneLabels || []).length === 1 ? '' : 's'} (${laneText}) were not fully protected.`;
       } else {
         message = `Someone attempted to complete ${displayCardName(card)}, but it did not advance the project.`;
       }
@@ -554,7 +662,11 @@ class GameSystem {
       publicHidden: outcome === 'investigation',
       ownerName: revealOwner ? ownerName : null,
       lane: card.lane || null,
+      lanes: Array.isArray(card.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card.lanes) ? [...card.lanes] : []),
+      requiredLanes: Array.isArray(card.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card.lanes) ? [...card.lanes] : []),
       laneLabel: card.lane ? laneLabel(card.lane) : null,
+      laneLabels: Array.isArray(card.requiredLanes) ? card.requiredLanes.map(lane => laneLabel(lane)) : [],
+      progressPoints: card.progressPoints || null,
       integrityBefore: beforeIntegrity,
       integrityAfter: afterIntegrity,
       integrityDelta: Math.max(0, beforeIntegrity - afterIntegrity),
@@ -579,7 +691,11 @@ class GameSystem {
       name: card.name,
       type: card.type,
       lane: card.lane || null,
+      lanes: Array.isArray(card.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card.lanes) ? [...card.lanes] : []),
+      requiredLanes: Array.isArray(card.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card.lanes) ? [...card.lanes] : []),
       laneLabel: card.lane ? laneLabel(card.lane) : null,
+      laneLabels: Array.isArray(card.requiredLanes) ? card.requiredLanes.map(lane => laneLabel(lane)) : [],
+      progressPoints: card.progressPoints || null,
       category: card.category || null,
       description: card.description,
       effectDescription: card.effectDescription,
@@ -601,7 +717,11 @@ class GameSystem {
       name: card.name,
       type: card.type,
       lane: card.lane || null,
+      lanes: Array.isArray(card.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card.lanes) ? [...card.lanes] : []),
+      requiredLanes: Array.isArray(card.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card.lanes) ? [...card.lanes] : []),
       laneLabel: card.lane ? laneLabel(card.lane) : null,
+      laneLabels: Array.isArray(card.requiredLanes) ? card.requiredLanes.map(lane => laneLabel(lane)) : [],
+      progressPoints: card.progressPoints || null,
       category: card.category || null,
       owner: card.owner?.name || null,
       ownerRole: card.owner?.returnType?.() || 'unknown',

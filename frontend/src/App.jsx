@@ -6,7 +6,7 @@ import { EnterDetails } from "./screens/EnterDetails";
 import { Lobby } from "./screens/Lobby";
 import { Game } from "./screens/Game";
 import { io } from "socket.io-client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Settings } from "./components/Settings";
 import { About } from "./components/About";
 import { UpdateNotes } from "./components/UpdateNotes";
@@ -18,13 +18,13 @@ export default function App() {
   const [name, setName] = useState(localStorage.getItem("name") || "");
   const [room, setRoom] = useState(localStorage.getItem("room") || "");
 
-  const backend = import.meta.env.VITE_BACKEND_URL;
+  const backend = useMemo(() => import.meta.env.VITE_BACKEND_URL, []);
 
   useEffect(() => {
     const newSocket = io(backend);
     setSocket(newSocket);
     return () => newSocket.disconnect();
-  }, []);
+  }, [backend]);
 
   useEffect(() => { localStorage.setItem("name", name); }, [name]);
   useEffect(() => { localStorage.setItem("room", room); }, [room]);

@@ -45,7 +45,7 @@ export function GameInfoModal({ open, onClose }) {
                 <RulesList>
                   <p><strong>4 to 5 players</strong> are required. One player is secretly assigned as the Hacker. Everyone else is a Security Engineer.</p>
                   <p><strong>Security Engineers</strong> win by completing the project or correctly voting out the Hacker. Engineers always draw from the Security deck.</p>
-                  <p><strong>The Hacker</strong> wins by reducing System Integrity to zero. At the start of each turn after the first, the Hacker secretly draws 2 cards in any combination from the Security and Hacker decks.</p>
+                  <p><strong>The Hacker</strong> wins by reducing System Integrity to zero. At the start of each turn after the first, the Hacker secretly draws 2 cards in any combination from the Security and Hacker decks. The Hacker may submit up to 2 cards per turn, but only 1 Hacker card and 1 Security card.</p>
                 </RulesList>
               </RuleBlock>
 
@@ -61,21 +61,21 @@ export function GameInfoModal({ open, onClose }) {
                 <RulesList>
                   <p>There are five Lanes: <strong>Credentials</strong>, <strong>Social</strong>, <strong>Web</strong>, <strong>Network</strong>, and <strong>Physical</strong>.</p>
                   <p>Only three Lanes can be defended at once. Defences are face-up and persist until replaced or sabotaged. They do not deplete when they block an attack.</p>
-                  <p>Tasks belong to Lanes and can only be completed when their matching Lane is defended. Each completed task grants +1 Project Progress, so the team has to protect Lanes before pushing work.</p>
+                  <p>Tasks also belong to Lanes. A task can only be completed when its matching Lane is defended. Each completed task grants +1 Project Progress.</p>
                 </RulesList>
               </RuleBlock>
 
               <RuleBlock title="Attacks, Evidence, and Logs">
                 <RulesList>
-                  <p>Attacks target Lanes. If the Lane is open, most attacks remove 1 Integrity. DDoS instead cancels Project Progress for that turn. Zero-Day is a rare late-game attack that cannot be blocked.</p>
-                  <p>When a defence blocks an attack, the team gains 1 Evidence. Check Server Log lets a player privately check whether another player's submitted card this turn was hostile.</p>
+                  <p>Attacks target Lanes. If the Lane is open, most attacks remove 1 Integrity. DDoS instead limits processing power while it is ongoing, leaving later cards stuck until an Anti-DDoS countermeasure is deployed. Zero-Day is a rare late-game attack that cannot be blocked.</p>
+                  <p>When a defence blocks an attack, the team gains 1 Evidence. Check Server Log costs 1 Evidence and privately checks whether another player has played a hostile card this cycle. At 5 Evidence, the Hacker's identity is revealed publicly.</p>
                   <p>Rapid Incident Response blocks one attack during the current turn only. It is discarded after use and never lingers into later turns.</p>
                 </RulesList>
               </RuleBlock>
 
               <RuleBlock title="Voting and Win Conditions">
                 <RulesList>
-                  <p>Security Engineers may call the formal vote from cycle 3 onward. The Hacker may vote, but only engineer votes count when deciding who is removed.</p>
+                  <p>Security Engineers may propose the formal vote from cycle 3 onward. A 4-player game needs 2 players ready to proceed; a 5-player game needs 3. If the table delays, the vote option remains available. Once the vote begins, the Hacker may vote, but only engineer votes count when deciding who is removed.</p>
                   <p>If the engineers remove the Hacker, they win. If they remove the wrong player, that player becomes a spectator and the formal vote is spent.</p>
                   <p>The Hacker wins if Integrity reaches zero. The engineers win if the project reaches its required progress first.</p>
                 </RulesList>

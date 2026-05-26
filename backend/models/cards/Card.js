@@ -9,6 +9,8 @@ class Card {
     deployTime = 0,
     owner = null,
     lane = null,
+    lanes = null,
+    progressPoints = null,
     category = null,
     hackerOnly = false,
     isHostile = false,
@@ -22,6 +24,9 @@ class Card {
     this.baseDeployTime = deployTime;
     this.owner = owner;
     this.lane = lane;
+    this.lanes = Array.isArray(lanes) ? lanes : (lane ? [lane] : []);
+    this.requiredLanes = this.lanes;
+    this.progressPoints = progressPoints;
     this.category = category;
     this.hackerOnly = Boolean(hackerOnly);
     this.isHostile = Boolean(isHostile || type === 'attack');
@@ -46,7 +51,11 @@ class Card {
       baseDeployTime: this.baseDeployTime,
       owner: this.owner ? this.owner.name : null,
       lane: this.lane,
+      lanes: Array.isArray(this.lanes) ? [...this.lanes] : [],
+      requiredLanes: Array.isArray(this.requiredLanes) ? [...this.requiredLanes] : [],
       laneLabel: this.lane ? laneLabel(this.lane) : null,
+      laneLabels: Array.isArray(this.requiredLanes) ? this.requiredLanes.map(lane => laneLabel(lane)) : [],
+      progressPoints: this.progressPoints,
       category: this.category,
       hackerOnly: this.hackerOnly,
       isHostile: this.isHostile,

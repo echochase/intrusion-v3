@@ -1,8 +1,7 @@
 /**
  * game_logs/index.js
  *
- * LogEntry and PlayerLog — mirrors the Java game_logs package.
- * Entries are hidden (face-down) for attack/defence cards until revealed.
+ * LogEntry keeps public turn-log lines serialisable for the client.
  */
 
 class LogEntry {
@@ -26,14 +25,6 @@ class LogEntry {
     this.incidentEvent = incidentEvent;
   }
 
-  /** Human-readable string (mirrors Java prettyToString) */
-  prettyToString() {
-    if (this.isHidden) {
-      return `| ${this.type.padEnd(10)} | ${'(Hidden)'.padEnd(15)} | ${'(Unknown)'.padEnd(15)} |`;
-    }
-    return `| ${this.type.padEnd(10)} | ${this.name.padEnd(15)} | ${this.description.padEnd(15)} |`;
-  }
-
   /** Safe JSON for the client — hidden entries redact name/description */
   toJSON() {
     return {
@@ -48,25 +39,4 @@ class LogEntry {
   }
 }
 
-class PlayerLog {
-  constructor() {
-    /** @type {LogEntry[]} */
-    this.logs = [];
-  }
-
-  /** @param {LogEntry} entry */
-  add(entry) {
-    this.logs.push(entry);
-  }
-
-  /** Returns entries for a given turn number */
-  forTurn(turnNum) {
-    return this.logs.filter(e => e.turnNum === turnNum);
-  }
-
-  toJSON() {
-    return this.logs.map(e => e.toJSON());
-  }
-}
-
-module.exports = { LogEntry, PlayerLog };
+module.exports = { LogEntry };

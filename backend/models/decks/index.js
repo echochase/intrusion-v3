@@ -87,7 +87,10 @@ class HackerDeck extends Deck {
     this.playPile.push(new attacks.ZeroDay());
 
     for (let i = 0; i < 3; i++) {
-      this.playPile.push(new actions.Reconnaissance());
+      this.playPile.push(
+        new actions.Reconnaissance(),
+        new attacks.InsiderSabotage(),
+      );
     }
   }
 }
@@ -120,7 +123,7 @@ class TaskDeck extends Deck {
   constructor() { super('task'); }
 
   _buildPlayPile() {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       this.playPile.push(
         new tasks.ServerMaintenance(),
         new tasks.CompanyMeeting(),
@@ -129,9 +132,12 @@ class TaskDeck extends Deck {
         new tasks.HazardReport(),
         new tasks.CorporateAnnouncement(),
         new tasks.CompanyMixerEvent(),
+        new tasks.AccessReview(),
+        new tasks.SecureBuildReview(),
+        new tasks.OfficeLockupAudit(),
       );
     }
   }
 }
 
-module.exports = { Deck, HackerDeck, SecEngDeck, TaskDeck };
+module.exports = { HackerDeck, SecEngDeck, TaskDeck };

@@ -1,7 +1,7 @@
 const GameSystem = require('./GameSystem');
 const { HackerDeck, SecEngDeck, TaskDeck } = require('./decks');
 const { Hacker, SecurityEngineer, MAX_HAND_SIZE } = require('./Player');
-const { PlayerLog } = require('./game_logs');
+const { laneLabel } = require('./defines');
 
 const SECURITY_MAX_CARDS_PER_TURN = 1;
 const HACKER_MAX_CARDS_PER_TURN = 2;
@@ -37,7 +37,6 @@ class Game {
     this.votingExpired = false;
     this.eliminated = [];
 
-    this.playerLogs = Object.fromEntries(this.players.map(player => [player.name, new PlayerLog()]));
     this.taskCompletionCounts = Object.fromEntries(this.players.map(player => [player.name, 0]));
   }
 
@@ -127,6 +126,10 @@ class Game {
     const kindCheck = this._validateSubmissionKinds(player, toPlay);
     if (!kindCheck.ok) return kindCheck;
 
+    if (player instanceof Hacker && this.turnNumber <= 1 && toPlay.some(card => card.type === 'attack')) {
+      return { ok: false, error: 'The Hacker cannot submit attack cards on the first cycle' };
+    }
+
     for (const card of toPlay) {
       if (card.hackerOnly && !(player instanceof Hacker)) return { ok: false, error: `${card.name} is not a security card` };
       if (!card.isPlayable(this.system)) return { ok: false, error: `${card.name} cannot be played right now` };
@@ -138,7 +141,7 @@ class Game {
       if (card.name === 'Check Server Log') {
         card.targetPlayerName = options.targetPlayerName || options.target || null;
       }
-      if (card.type === 'defence') {
+      if (card.type === 'defence' || card.name === 'Insider Sabotage' || card.category === 'Sabotage') {
         const rawSlot = options.defenceSlotIndex ?? options.slotIndex ?? options.slot;
         const slotIndex = Number(rawSlot);
         card.defenceSlotIndex = Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < 3 ? slotIndex : null;
@@ -198,6 +201,8 @@ class Game {
       name: card.name,
       type: card.type,
       lane: card.lane,
+      lanes: Array.isArray(card.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card.lanes) ? [...card.lanes] : []),
+      progressPoints: card.progressPoints || null,
       isHostile: Boolean(card.isHostile || card.type === 'attack'),
       submissionKind: this._submissionKind(card),
     }))]));
@@ -482,7 +487,10 @@ class Game {
 
   _attachReconHandSnapshot() {
     if (!this.system.reconResult) return;
-    this.system.reconResult.players = this.players.map(player => ({
+    const ownerName = this.system.reconResult.ownerName || null;
+    this.system.reconResult.players = this.players
+      .filter(player => !ownerName || player.name !== ownerName)
+      .map(player => ({
       name: player.name,
       role: player.returnType?.() || player.role || 'unknown',
       cards: (player.cards || []).map(card => ({
@@ -490,7 +498,7 @@ class Game {
         name: card.name,
         type: card.type,
         lane: card.lane || null,
-        laneLabel: card.lane ? require('./defines').laneLabel(card.lane) : null,
+        laneLabel: card.lane ? laneLabel(card.lane) : null,
         category: card.category || null,
         description: card.description,
         effectDescription: card.effectDescription,
@@ -513,7 +521,6 @@ class Game {
       win,
       reconResult: this.system.reconResult,
       serverLogResults: [...(this.system.serverLogResults || [])],
-      completedTaskOwners: [],
     };
   }
 
@@ -618,14 +625,18 @@ class Game {
           return `RIR nullified ${event.attackName} on ${event.laneLabel || event.lane}.`;
         case 'attack-blocked':
           return `BLOCKED by ${event.defenceName} on ${event.laneLabel || event.lane}; evidence +${event.evidenceGained || 0}.`;
-        case 'task-progress-cancelled':
-          return 'DDoS cancelled all task progress for this turn.';
+        case 'processing-capacity-reduced':
+          return `DDoS overload reduced processing capacity ${event.beforeLimit} -> ${event.afterLimit}.`;
         case 'integrity-loss':
           return `Integrity ${event.before} -> ${event.after}.`;
         case 'defence-installed':
           return `${event.defenceName} installed in slot ${event.slotIndex}${event.replacedName ? `, replacing ${event.replacedName}` : ''}.`;
-        case 'task-completed':
-          return `Task on ${event.laneLabel || event.lane}: ${event.defended ? 'defended' : 'undefended'}, progress +${event.progress}.`;
+        case 'sabotage-installed':
+          return `${event.sabotageName || 'Insider Sabotage'} occupied defence slot ${event.slotIndex}${event.replacedName ? `, replacing ${event.replacedName}` : ''}. No Lane is protected by it.`;
+        case 'task-completed': {
+          const laneText = (event.laneLabels || [event.laneLabel || event.lane]).filter(Boolean).join(' + ') || 'matching lane';
+          return `Task on ${laneText}: ${event.defended ? 'defended' : 'undefended'}, progress +${event.progress}.`;
+        }
         case 'server-log-check':
           if (event.insufficientEvidence) return `${event.ownerName} could not check logs: insufficient Evidence.`;
           return `${event.ownerName} checked ${event.targetName || 'nobody'}: ${event.checked ? (event.hostile ? 'hostile card found' : 'no hostile card') : 'not checked'}.`;
@@ -634,7 +645,7 @@ class Game {
         case 'hacker-revealed-by-evidence':
           return `Evidence reached ${event.evidence}; Hacker revealed.`;
         case 'reconnaissance':
-          return 'Recon queued a private hand report for the Hacker.';
+          return 'Recon queued a private hand report of other players for the Hacker.';
         default:
           return event.kind;
       }
@@ -668,9 +679,15 @@ class Game {
       for (const event of details.events || []) console.log(`     - ${eventText(event)}`);
     }
 
-    console.log(subline);
+    if (debug.unprocessed?.length) {
+      console.log('UNPROCESSED');
+      for (const entry of debug.unprocessed) {
+        console.log(`  ${entry.sequence}. ${entry.owner || 'Unknown'} -> ${fmtCard(entry)} => ${entry.outcome}`);
+      }
+      console.log(subline);
+    }
     if (debug.reconResult?.players?.length) {
-      console.log('PRIVATE RECON HAND SNAPSHOT');
+      console.log('PRIVATE RECON HAND SNAPSHOT (OTHER PLAYERS ONLY)');
       for (const player of debug.reconResult.players) {
         const cards = (player.cards || []).map(card => card.name).join(', ') || 'empty hand';
         console.log(`  ${player.name}: ${cards}`);
@@ -686,8 +703,8 @@ class Game {
       console.log(`REPLACED DEFENCES: ${debug.replacedDefences.map(fmtCard).join('; ')}`);
     }
 
-    const slots = (debug.defenceSlots || []).map(slot => slot.empty ? `[${slot.index}: empty]` : `[${slot.index}: ${slot.name}/${slot.lane}]`).join(' ');
-    console.log(`FINAL: integrity=${debug.integrityPoints}, evidence=${debug.evidence}, tasks=${debug.tasksRemaining}/${debug.totalTasks}, progressThisTurn=${debug.projectProgressGainedThisTurn}, taskProgressCancelled=${debug.taskProgressCancelled}, hackerRevealed=${debug.hackerRevealed}`);
+    const slots = (debug.defenceSlots || []).map(slot => slot.empty ? `[${slot.index}: empty]` : `[${slot.index}: ${slot.name}/${slot.isSabotage ? 'sabotage' : slot.lane}]`).join(' ');
+    console.log(`FINAL: integrity=${debug.integrityPoints}, evidence=${debug.evidence}, tasks=${debug.tasksRemaining}/${debug.totalTasks}, progressThisTurn=${debug.projectProgressGainedThisTurn}, capacity=${debug.capacity}, ddos=${debug.ddosDisruptionActive}, hackerRevealed=${debug.hackerRevealed}`);
     console.log(`DEFENCES: ${slots}`);
     console.log(`${line}\n`);
   }

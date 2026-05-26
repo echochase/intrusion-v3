@@ -42,10 +42,6 @@ function laneLabel(lane) {
   return LaneLabels[lane] || 'Unknown';
 }
 
-function normaliseLane(lane) {
-  const value = String(lane || '').toLowerCase();
-  return Object.values(Lane).includes(value) ? value : null;
-}
 
 module.exports = {
   Lane,
@@ -53,5 +49,4 @@ module.exports = {
   CoreDefenceByLane,
   CoreAttackByLane,
   laneLabel,
-  normaliseLane,
 };

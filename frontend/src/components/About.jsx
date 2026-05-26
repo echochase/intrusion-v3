@@ -47,8 +47,8 @@ export const About = () => {
       <p>
         Attacks and defences are grouped by security concept. Phishing attacks the Social Lane and is
         stopped by Employee Awareness. XSS attacks the Web Lane and is stopped by Input Sanitisation.
-        Credential attacks are stopped by Two-Factor Authentication. DDoS pressures the Network Lane,
-        while Physical Data Theft targets physical access.
+        Credential attacks are stopped by Two-Factor Authentication. DDoS pressures the Network Lane
+        by limiting processing power until an Anti-DDoS countermeasure is deployed, while Physical Data Theft targets physical access.
       </p>
       <p>
         When something happens, the incident report explains the cause and effect in plain language. If an

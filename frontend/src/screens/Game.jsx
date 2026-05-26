@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "@mui/material";
+import { GameInfoModal } from "../components/GameInfoModal";
 import "../styles/game.css";
 
 const cardModules = import.meta.glob(
@@ -78,6 +79,7 @@ const KNOWN_CARD_NAMES = Array.from(new Set([
   "Model Training",
   "Responsible Engineer",
   "Company Mixer Event",
+  "Insider Sabotage",
 ])).filter(Boolean).sort((a, b) => b.length - a.length);
 
 function escapeRegex(value = "") {
@@ -207,6 +209,10 @@ function submissionKind(card) {
   return 'security';
 }
 
+function usesDefenceSlot(card) {
+  return Boolean(card && (card.type === 'defence' || card.name === 'Insider Sabotage' || card.category === 'Sabotage'));
+}
+
 function maxSubmitCardsFor(player) {
   return player?.role === 'Hacker' ? 2 : 1;
 }
@@ -231,8 +237,11 @@ function submissionRuleMessage(player, existingCards, nextCard) {
   return '';
 }
 
-function stateRequirementMessage(system, card) {
+function stateRequirementMessage(system, card, { player = null, turnNumber = null } = {}) {
   if (!card) return '';
+  if (player?.role === 'Hacker' && Number(turnNumber) <= 1 && card.type === 'attack') {
+    return 'The Hacker cannot submit attack cards on the first cycle.';
+  }
   if (card.name === 'Check Server Log' && (system?.evidence || 0) < 1) {
     return 'Check Server Log costs 1 Evidence. The team has no Evidence yet.';
   }
@@ -244,7 +253,9 @@ function CardCostChips({ card }) {
 
   const chips = [];
   if (card.type && card.type !== 'task') chips.push(card.type);
-  if (card.laneLabel) {
+  if (card.name === 'Insider Sabotage' || card.category === 'Sabotage') {
+    chips.push('Defence Slot');
+  } else if (card.laneLabel) {
     chips.push(card.type === 'task' ? taskDomainLabel(card) : `${card.laneLabel} Lane`);
   }
 
@@ -257,6 +268,18 @@ function CardCostChips({ card }) {
 
 function effectText(card) {
   return card?.effectDescription || card?.description || 'No extra effect text.';
+}
+
+function hoverCardName(card) {
+  if (!card?.name) return 'Card';
+
+  const compact = compactName(card.name);
+  const hoverAliases = {
+    reconnaissance: 'recon',
+    twofactorauthentication: 'two-factor auth',
+  };
+
+  return hoverAliases[compact] || card.name;
 }
 
 function CardTile({
@@ -275,6 +298,7 @@ function CardTile({
   const holdTimerRef = useRef(null);
   const longPressFiredRef = useRef(false);
   const [holding, setHolding] = useState(false);
+  const hoverLabel = hoverCardName(card);
 
   const clearHold = () => {
     if (holdTimerRef.current) {
@@ -328,7 +352,7 @@ function CardTile({
         clearHold();
         onDragStart?.(event);
       }}
-      title={showDetails ? `${card?.name || 'Card'} — click and hold for details` : undefined}
+      title={showDetails ? `${hoverLabel} — click and hold for details` : undefined}
     >
       {src ? (
         <img src={src} alt={card.name} className="play-card-image" draggable={false} />
@@ -341,7 +365,7 @@ function CardTile({
 
       {showDetails && (
         <div className="play-card-details">
-          <strong>{card?.name}</strong>
+          <strong>{hoverLabel}</strong>
           <p>Click and hold for details.</p>
           <div className="cost-chip-row">
             <CardCostChips card={card} />
@@ -395,7 +419,7 @@ function DefenceZone({ slots = [], onInspect }) {
               className="defence-slot revealed text-only"
               onClick={() => onInspect?.(slot.card)}
             >
-              <span className="defence-slot-label">DEFENDED</span>
+              <span className="defence-slot-label">{slot.card.name === 'Insider Sabotage' || slot.card.category === 'Sabotage' ? 'SABOTAGED' : 'DEFENDED'}</span>
               <strong>{slot.card.name}</strong>
             </button>
           );
@@ -437,7 +461,7 @@ function LaneBoard({ lanes = [], onInspect }) {
         <button
           key={lane.lane || lane.label}
           type="button"
-          className={`lane-row ${lane.status === 'defended' ? 'defended' : 'open'}`}
+          className={`lane-row ${lane.status === 'defended' ? 'defended' : 'open'} ${lane.ddosActive ? 'ddos-active' : ''}`}
           onClick={() => lane.defence && onInspect?.(lane.defence)}
         >
           <span className="lane-name">{lane.label}</span>
@@ -450,7 +474,7 @@ function LaneBoard({ lanes = [], onInspect }) {
 }
 
 function DefenceSlotSelector({ card, system, value, onChange }) {
-  if (!card || card.type !== 'defence') return null;
+  if (!usesDefenceSlot(card)) return null;
   const slots = system?.defenceSlots || [];
   const selected = value ?? defaultDefenceSlot(system, card);
 
@@ -702,7 +726,7 @@ function IntegrityLoss({ page }) {
   );
 }
 
-function ReconReportModal({ report, onClose }) {
+function ReconReportModal({ report, onClose, onInspect }) {
   const players = report?.players || [];
 
   return (
@@ -717,7 +741,7 @@ function ReconReportModal({ report, onClose }) {
             <button type="button" onClick={onClose}>Close</button>
           </div>
 
-          <p className="recon-note">Visible only to the Hacker. This snapshot is taken at the end of the resolved turn.</p>
+          <p className="recon-note">Visible only to the Hacker. This end-of-turn snapshot shows each other player, not your own hand.</p>
 
           <div className="recon-grid">
             {players.map((player) => (
@@ -737,6 +761,7 @@ function ReconReportModal({ report, onClose }) {
                         type="button"
                         className="recon-card-chip"
                         title={card.effectDescription || card.description || card.name}
+                        onClick={() => onInspect?.(card)}
                       >
                         <strong><TextWithHighlightedCards text={card.name} preferred={[card.name, card.rawName]} /></strong>
                         <span>{card.type}{card.laneLabel ? ` // ${card.laneLabel}` : ''}</span>
@@ -845,110 +870,6 @@ function IncidentReportModal({ open, pages, index, setIndex, onClose }) {
   );
 }
 
-function RulesList({ children }) {
-  return <div className="rules-list">{children}</div>;
-}
-
-function RuleBlock({ title, children }) {
-  return (
-    <section className="rules-block">
-      <h3>{title}</h3>
-      <div>{children}</div>
-    </section>
-  );
-}
-
-function GameInfoModal({ open, onClose }) {
-  const [tab, setTab] = useState('rules');
-
-  return (
-    <Modal open={open} onClose={onClose}>
-      <div className="game-info-shell" onClick={onClose}>
-        <div className="game-info-panel" onClick={(event) => event.stopPropagation()}>
-          <div className="game-info-header">
-            <div>
-              <span className="header-eyebrow">internal briefing</span>
-              <h2>{tab === 'rules' ? 'Rules of Intrusion' : 'Field Notes and Lore'}</h2>
-            </div>
-            <button type="button" onClick={onClose}>Close</button>
-          </div>
-
-          <div className="game-info-tabs" role="tablist" aria-label="Rules and lore sections">
-            <button type="button" className={tab === 'rules' ? 'active' : ''} onClick={() => setTab('rules')}>Rules</button>
-            <button type="button" className={tab === 'field' ? 'active' : ''} onClick={() => setTab('field')}>Field Notes</button>
-          </div>
-
-          {tab === 'rules' ? (
-            <div className="rules-copy">
-              <RuleBlock title="Premise">
-                <p>One hidden Hacker is trying to compromise the system while the Security Engineers race to finish the project. The public board is built around five security Lanes: Credentials, Social, Web, Network, and Physical. A Lane is either open or defended.</p>
-              </RuleBlock>
-
-              <RuleBlock title="Players and Roles">
-                <RulesList>
-                  <p><strong>4 to 5 players</strong> are required. One player is secretly assigned as the Hacker. Everyone else is a Security Engineer.</p>
-                  <p><strong>Security Engineers</strong> win by completing the project or correctly voting out the Hacker. Engineers always draw from the Security deck.</p>
-                  <p><strong>The Hacker</strong> wins by reducing System Integrity to zero. At the start of each turn after the first, the Hacker secretly draws 2 cards in any combination from the Security and Hacker decks. The Hacker may submit up to 2 cards per turn, but only 1 Hacker card and 1 Security card.</p>
-                </RulesList>
-              </RuleBlock>
-
-              <RuleBlock title="Turn Structure">
-                <RulesList>
-                  <p>Each active player has one task and a private hand. Each turn, players discuss, then Security Engineers secretly submit <strong>one card</strong> or pass. The Hacker may submit up to <strong>two cards</strong>, with at most one Hacker card and one Security card.</p>
-                  <p>When everyone has submitted, the System resolves emergency responses first, then hostile operations, defences, investigations, and tasks.</p>
-                  <p>Hands are private. Players may claim, bluff, promise, and accuse, but they should not reveal screenshots or prove the exact contents of their hand.</p>
-                </RulesList>
-              </RuleBlock>
-
-              <RuleBlock title="Lanes, Defences, and Tasks">
-                <RulesList>
-                  <p>There are five Lanes: <strong>Credentials</strong>, <strong>Social</strong>, <strong>Web</strong>, <strong>Network</strong>, and <strong>Physical</strong>.</p>
-                  <p>Only three Lanes can be defended at once. Defences are face-up and persist until replaced or sabotaged. They do not deplete when they block an attack.</p>
-                  <p>Tasks also belong to Lanes. A task can only be completed when its matching Lane is defended. Each completed task grants +1 Project Progress.</p>
-                </RulesList>
-              </RuleBlock>
-
-              <RuleBlock title="Attacks, Evidence, and Logs">
-                <RulesList>
-                  <p>Attacks target Lanes. If the Lane is open, most attacks remove 1 Integrity. DDoS instead cancels Project Progress for that turn. Zero-Day is a rare late-game attack that cannot be blocked.</p>
-                  <p>When a defence blocks an attack, the team gains 1 Evidence. Check Server Log costs 1 Evidence and privately checks whether another player has played a hostile card this cycle. At 5 Evidence, the Hacker's identity is revealed publicly.</p>
-                  <p>Rapid Incident Response blocks one attack during the current turn only. It is discarded after use and never lingers into later turns.</p>
-                </RulesList>
-              </RuleBlock>
-
-              <RuleBlock title="Voting and Win Conditions">
-                <RulesList>
-                  <p>Security Engineers may propose the formal vote from cycle 3 onward. A 4-player game needs 2 players ready to proceed; a 5-player game needs 3. If the table delays, the vote option remains available. Once the vote begins, the Hacker may vote, but only engineer votes count when deciding who is removed.</p>
-                  <p>If the engineers remove the Hacker, they win. If they remove the wrong player, that player becomes a spectator and the formal vote is spent.</p>
-                  <p>The Hacker wins if Integrity reaches zero. The engineers win if the project reaches its required progress first.</p>
-                </RulesList>
-              </RuleBlock>
-            </div>
-          ) : (
-            <div className="rules-copy field-notes-copy">
-              <RuleBlock title="Why Tasks Matter">
-                <p>QuantumNova is trying to finish a practical quantum computer and connect it to an AI-powered defence system. Once that work is finished, the insider has missed their best chance. Every completed task is a step toward that safer future.</p>
-              </RuleBlock>
-
-              <RuleBlock title="Why Lanes Are Visible">
-                <p>Security is not just a pile of hidden shields. Teams need to understand which areas are protected and which areas are exposed. The visible Lane board turns that idea into a readable game state: the Hacker sees where the openings are, but the engineers see those openings too.</p>
-              </RuleBlock>
-
-              <RuleBlock title="Why Defences Persist">
-                <p>Two-factor authentication, input sanitisation, employee awareness, traffic filtering, and physical security do not vanish just because they stop one incident. They stay in place until the team replaces them or an insider disables them.</p>
-              </RuleBlock>
-
-              <RuleBlock title="The Zero-Day Attack">
-                <p>The Zero-Day Attack represents a flaw nobody planned around. It is rare, late-game, and unblockable because it reminds players that no system is perfect. Security is a constant race between defenders improving their posture and attackers finding new gaps.</p>
-              </RuleBlock>
-            </div>
-          )}
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 function winnerTitle(winner) {
   if (winner === 'engineers') return 'Security Engineers Win';
   if (winner === 'hacker') return 'Hacker Wins';
@@ -1048,7 +969,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
     [gameState, name]
   );
 
-  const hand = you?.cards ?? [];
+  const hand = useMemo(() => you?.cards ?? [], [you]);
   const task = you?.task ?? null;
   const selectableCards = useMemo(
     () => [...hand, ...(task ? [{ ...task, fromTaskSlot: true }] : [])],
@@ -1077,6 +998,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
     .filter(Boolean);
   const visibleQueueCards = hasSubmitted && submittedCards.length > 0 ? submittedCards : stagedCards;
   const system = gameState?.system ?? {};
+  const ddosOngoing = Boolean((system.lanes || []).some((lane) => lane.ddosActive));
   const tasksCompleted = system.numTasksCompleted ?? Math.max(0, (system.numTasksRequired ?? 0) - (system.numTasksRemaining ?? 0));
   const tasksRequired = system.numTasksRequired ?? "?";
   const maxSubmitCards = maxSubmitCardsFor(you);
@@ -1176,7 +1098,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
       }
 
       setReconReport(result);
-      setReports((current) => [...current, "Recon result: player hands revealed privately."]);
+      setReports((current) => [...current, "Recon result: other players' hands revealed privately."]);
     };
 
     const onServerLogResult = (result) => {
@@ -1332,7 +1254,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
       return;
     }
 
-    const stateMessage = stateRequirementMessage(system, card);
+    const stateMessage = stateRequirementMessage(system, card, { player: you, turnNumber: gameState?.turnNumber });
     if (stateMessage) {
       showAffordanceWarning(stateMessage);
       return;
@@ -1345,7 +1267,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
     }
 
     setStagedIds((current) => [...current, cardId]);
-    if (card.type === 'defence') {
+    if (usesDefenceSlot(card)) {
       setCardTargets((current) => ({
         ...current,
         [card.id]: {
@@ -1448,6 +1370,12 @@ export const Game = ({ socket, name, room, setRoom }) => {
     navigate(`/lobby/${activeRoom}`);
   };
 
+  const openLastTurnReport = () => {
+    if (!incidentReportPages.length) return;
+    setIncidentReportIndex(0);
+    setIncidentReportOpen(true);
+  };
+
   if (!gameState || !you) {
     return (
       <main className="game-page center">
@@ -1470,7 +1398,8 @@ export const Game = ({ socket, name, room, setRoom }) => {
 
         <div className="game-header-actions">
           <button type="button" onClick={() => setInfoOpen(true)}>Rules</button>
-          <button type="button" onClick={() => setLogOpen(true)}>Reports</button>
+          <button type="button" onClick={() => setLogOpen(true)}>Table Log</button>
+          <button type="button" onClick={openLastTurnReport} disabled={!incidentReportPages.length}>Last Report</button>
           <button type="button" onClick={requestRefresh}>Refresh</button>
           <button type="button" className="red" onClick={leaveGame}>
             Exit
@@ -1510,7 +1439,10 @@ export const Game = ({ socket, name, room, setRoom }) => {
 
         <div className="game-panel system-panel">
           <div className="panel-heading">
-            <span>// system</span>
+            <span className="system-heading-label">
+              // system
+              {ddosOngoing && <em className="ddos-status-chip">ONGOING DDoS</em>}
+            </span>
             <strong>{gameState.phase}</strong>
           </div>
 
@@ -1634,7 +1566,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
                 </div>
               )}
 
-              {!hasSubmitted && stagedCards.filter((card) => card.type === 'defence').map((card) => (
+              {!hasSubmitted && stagedCards.filter(usesDefenceSlot).map((card) => (
                 <DefenceSlotSelector
                   key={`slot-${card.id}`}
                   card={card}
@@ -1748,7 +1680,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
         onClose={() => setGameOverOpen(false)}
       />
 
-      <ReconReportModal report={reconReport} onClose={() => setReconReport(null)} />
+      <ReconReportModal report={reconReport} onClose={() => setReconReport(null)} onInspect={setPreviewCard} />
 
       <IncidentReportModal
         open={incidentReportOpen}
