@@ -1,0 +1,44 @@
+name: Ping Backend
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+concurrency:
+  group: ping-backend
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Ping backend URL
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+
+    env:
+      BACKEND_URL: ${{ vars.BACKEND_URL }}
+
+    steps:
+      - name: Ping backend three times
+        shell: bash
+        run: |
+          if [ -z "$BACKEND_URL" ]; then
+            echo "BACKEND_URL is not set."
+            exit 1
+          fi
+
+          for attempt in 1 2 3; do
+            echo "[$(date -u)] Ping $attempt/3: $BACKEND_URL"
+
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --max-time 30 \
+              "$BACKEND_URL"
+
+            if [ "$attempt" -lt 3 ]; then
+              sleep 120
+            fi
+          done
