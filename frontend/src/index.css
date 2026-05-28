@@ -133,10 +133,11 @@
   --text-dim: #3e6e73;
   --backdrop-background: #020b10;
   --backdrop-image:
-    radial-gradient(circle at 50% 38%, rgba(0, 255, 210, 0.08), transparent 26%),
-    linear-gradient(180deg, rgba(2, 8, 12, 0.48), rgba(2, 8, 12, 0.72)),
+    radial-gradient(circle at 50% 38%, rgba(128, 255, 244, 0.12), transparent 28%),
+    radial-gradient(ellipse at center, transparent 0%, rgba(2, 8, 12, 0.36) 52%, rgba(2, 8, 12, 0.74) 100%),
+    linear-gradient(180deg, rgba(2, 8, 12, 0.52), rgba(2, 8, 12, 0.74)),
     var(--active-background-image, linear-gradient(180deg, #020408 0%, #07141d 52%, #020408 100%));
-  --backdrop-size: cover, cover, cover;
+  --backdrop-size: cover, cover, cover, cover;
   --backdrop-position: center center;
   --backdrop-repeat: no-repeat;
   --backdrop-attachment: fixed;
@@ -160,9 +161,10 @@
   --text-dim: #68757a;
   --backdrop-background: #151719;
   --backdrop-image:
-    linear-gradient(180deg, rgba(8, 10, 12, 0.24), rgba(8, 10, 12, 0.52)),
+    radial-gradient(ellipse at center, rgba(244, 240, 229, 0.18), rgba(10, 12, 14, 0.58) 82%),
+    linear-gradient(180deg, rgba(245, 241, 229, 0.16), rgba(8, 10, 12, 0.5)),
     var(--active-background-image, linear-gradient(180deg, #f1eee6 0%, #d8d1c3 100%));
-  --backdrop-size: cover, cover;
+  --backdrop-size: cover, cover, cover;
   --backdrop-position: center center;
   --backdrop-repeat: no-repeat;
   --backdrop-attachment: fixed;
@@ -307,29 +309,71 @@ button:focus, button:focus-visible {
 }
 
 :root[data-background="grand"] .home-brand-stack,
+:root[data-background="pencil"] .home-brand-stack,
+:root[data-background="grand"] .home-menu-panel,
+:root[data-background="pencil"] .home-menu-panel {
+  border: 0;
+  background: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  clip-path: none;
+}
+
+:root[data-background="grand"] .home-brand-stack,
 :root[data-background="pencil"] .home-brand-stack {
-  padding: 1.1rem 1.4rem 1.25rem;
-  border: 1px solid var(--themed-panel-border);
-  background:
-    radial-gradient(circle at center, var(--green-glow), transparent 64%),
-    var(--themed-panel-bg);
-  box-shadow:
-    0 0 28px var(--themed-panel-glow),
-    0 0 80px rgba(0, 0, 0, 0.48);
-  backdrop-filter: var(--themed-panel-blur);
-  -webkit-backdrop-filter: var(--themed-panel-blur);
-  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  isolation: isolate;
+  padding: 0 1rem;
+}
+
+:root[data-background="grand"] .home-brand-stack::before,
+:root[data-background="pencil"] .home-brand-stack::before {
+  content: '';
+  position: absolute;
+  inset: -1.4rem -2rem;
+  z-index: -1;
+  pointer-events: none;
+}
+
+:root[data-background="grand"] .home-brand-stack::before {
+  background: radial-gradient(ellipse at center, rgba(0, 212, 255, 0.2), rgba(0, 212, 255, 0.06) 36%, transparent 70%);
+  filter: blur(10px);
+}
+
+:root[data-background="pencil"] .home-brand-stack::before {
+  background: radial-gradient(ellipse at center, rgba(246, 238, 216, 0.22), rgba(40, 36, 32, 0.16) 48%, transparent 76%);
+  filter: blur(8px);
 }
 
 :root[data-background="grand"] .home-menu-panel,
 :root[data-background="pencil"] .home-menu-panel {
-  padding: 1rem;
-  border: 1px solid var(--themed-panel-border);
-  background: var(--themed-panel-bg);
-  box-shadow: 0 0 30px var(--themed-panel-glow), 0 0 90px rgba(0, 0, 0, 0.52);
-  backdrop-filter: var(--themed-panel-blur);
-  -webkit-backdrop-filter: var(--themed-panel-blur);
-  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  padding: 0.15rem;
+}
+
+:root[data-background="grand"] .home-menu-panel .MuiButton-root {
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.08), rgba(128, 255, 244, 0.16), rgba(0, 212, 255, 0.08)) !important;
+  border-color: rgba(128, 255, 244, 0.64) !important;
+  box-shadow: 0 0 18px rgba(0, 212, 255, 0.18), inset 0 0 24px rgba(128, 255, 244, 0.04) !important;
+  color: #d9fffb !important;
+  text-shadow: 0 0 10px rgba(128, 255, 244, 0.45);
+}
+
+:root[data-background="grand"] .home-menu-panel .MuiButton-root:hover {
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.16), rgba(128, 255, 244, 0.24), rgba(0, 212, 255, 0.16)) !important;
+  box-shadow: 0 0 24px rgba(0, 212, 255, 0.34), 0 0 64px rgba(128, 255, 244, 0.14) !important;
+}
+
+:root[data-background="pencil"] .home-menu-panel .MuiButton-root {
+  background: linear-gradient(90deg, rgba(18, 20, 22, 0.5), rgba(245, 239, 222, 0.12), rgba(18, 20, 22, 0.5)) !important;
+  border-color: rgba(235, 228, 208, 0.42) !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28), inset 0 0 20px rgba(255, 255, 255, 0.03) !important;
+  color: #f0eadc !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+}
+
+:root[data-background="pencil"] .home-menu-panel .MuiButton-root:hover {
+  background: linear-gradient(90deg, rgba(30, 32, 34, 0.62), rgba(245, 239, 222, 0.2), rgba(30, 32, 34, 0.62)) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.34), 0 0 22px rgba(235, 228, 208, 0.14) !important;
 }
 
 :root[data-background="grand"] button,
@@ -383,8 +427,6 @@ button:focus, button:focus-visible {
   box-shadow: inset 0 0 34px rgba(255, 255, 255, 0.03);
 }
 
-:root[data-background="grand"] .home-title,
-:root[data-background="pencil"] .home-title,
 :root[data-background="grand"] .card-list-header h1,
 :root[data-background="pencil"] .card-list-header h1,
 :root[data-background="grand"] .game-header h1,
@@ -393,6 +435,24 @@ button:focus, button:focus-visible {
     0 0 16px var(--green-glow),
     0 0 34px var(--themed-panel-glow),
     0 2px 16px rgba(0, 0, 0, 0.62) !important;
+}
+
+:root[data-background="grand"] .home-title {
+  color: #d9fffb !important;
+  text-shadow:
+    0 0 10px rgba(128, 255, 244, 0.9),
+    0 0 34px rgba(0, 212, 255, 0.58),
+    0 0 90px rgba(0, 212, 255, 0.24),
+    0 6px 28px rgba(0, 0, 0, 0.82) !important;
+}
+
+:root[data-background="pencil"] .home-title {
+  color: #f5efe0 !important;
+  text-shadow:
+    1px 1px 0 rgba(18, 20, 22, 0.95),
+    -1px 0 0 rgba(255, 255, 255, 0.18),
+    0 0 28px rgba(245, 239, 222, 0.24),
+    0 6px 24px rgba(0, 0, 0, 0.66) !important;
 }
 
 :root[data-background="grand"] .settings-option,

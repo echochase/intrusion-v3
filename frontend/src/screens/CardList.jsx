@@ -182,7 +182,7 @@ const DeckListSection = ({ onInspect }) => (
                   <strong>{card.copies}x</strong>
                   <span>{card.name}</span>
                   <em>{card.type} // {card.lane}</em>
-                  <small>{effectText(card)}</small>
+                  <small>Click to inspect</small>
                 </button>
               ))}
             </div>
@@ -222,8 +222,10 @@ function CardLibraryPreviewModal({ card, onClose }) {
 export const CardList = () => {
   const navigate = useNavigate();
   const [previewCard, setPreviewCard] = useState(null);
+  const [viewMode, setViewMode] = useState("cards");
   const uniqueTotal = attackCards.length + defenceCards.length + actionCards.length + taskCards.length;
   const deckTotal = deckLists.reduce((sum, deck) => sum + deck.count, 0);
+  const isCardsView = viewMode === "cards";
 
   return (
     <div className="card-list-page">
@@ -231,13 +233,39 @@ export const CardList = () => {
         <span className="header-eyebrow">Classified Database</span>
         <h1>CARD LIBRARY</h1>
         <span className="header-count">{uniqueTotal} live modules // {deckTotal} deck cards</span>
+
+        <div className="card-library-toggle" role="tablist" aria-label="Card library view">
+          <button
+            type="button"
+            className={isCardsView ? "active" : ""}
+            onClick={() => setViewMode("cards")}
+            role="tab"
+            aria-selected={isCardsView}
+          >
+            Cards
+          </button>
+          <button
+            type="button"
+            className={!isCardsView ? "active" : ""}
+            onClick={() => setViewMode("decks")}
+            role="tab"
+            aria-selected={!isCardsView}
+          >
+            Decks
+          </button>
+        </div>
       </header>
 
-      <DeckListSection onInspect={setPreviewCard} />
-      <CardSection label="hacker registry" cards={attackCards} onInspect={setPreviewCard} />
-      <CardSection label="defence registry" cards={defenceCards} onInspect={setPreviewCard} />
-      <CardSection label="action registry" cards={actionCards} onInspect={setPreviewCard} />
-      <CardSection label="task registry" cards={taskCards} onInspect={setPreviewCard} />
+      {isCardsView ? (
+        <>
+          <CardSection label="hacker registry" cards={attackCards} onInspect={setPreviewCard} />
+          <CardSection label="defence registry" cards={defenceCards} onInspect={setPreviewCard} />
+          <CardSection label="action registry" cards={actionCards} onInspect={setPreviewCard} />
+          <CardSection label="task registry" cards={taskCards} onInspect={setPreviewCard} />
+        </>
+      ) : (
+        <DeckListSection onInspect={setPreviewCard} />
+      )}
 
       <CardLibraryPreviewModal card={previewCard} onClose={() => setPreviewCard(null)} />
       <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
