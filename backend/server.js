@@ -26,13 +26,33 @@ app.use(cors({
 
 app.use(express.json());
 
+let healthPingCount = 0;
+let lastHealthPingAt = null;
+
+app.get('/health', (req, res) => {
+  const timestamp = new Date().toISOString();
+
+  healthPingCount += 1;
+  lastHealthPingAt = timestamp;
+
+  console.log(`[health] Ping received at ${timestamp} | count=${healthPingCount}`);
+
+  res.status(200).json({
+    ok: true,
+    service: 'intrusion-backend',
+    timestamp,
+    healthPingCount,
+    lastHealthPingAt,
+  });
+});
+
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error('Not allowed by CORS'));
       }
     },
     credentials: true,
@@ -42,6 +62,8 @@ const io = new Server(server, {
 const socketHandler = require('./socket');
 socketHandler(io);
 
-server.listen(3000, () => {
-  console.log('Server listening on port 3000');
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
