@@ -43,6 +43,8 @@ class GameSystem {
     this.currentCard = null;
     this.currentCardEvents = [];
     this.serverLogResults = [];
+    this.falseFlagFrames = {};
+    this.falseFlagResults = [];
     this.reconResult = null;
     this.submissionSnapshot = {};
     this.turnDebug = null;
@@ -57,6 +59,8 @@ class GameSystem {
     this.currentCard = null;
     this.currentCardEvents = [];
     this.serverLogResults = [];
+    this.falseFlagFrames = {};
+    this.falseFlagResults = [];
     this.reconResult = null;
     this.submissionSnapshot = submissionSnapshot || {};
     this.replacedDefencesThisTurn = [];
@@ -207,6 +211,7 @@ class GameSystem {
       processCapacityReduction: this.processCapacityReduction,
       replacedDefences: (this.replacedDefencesThisTurn || []).map(card => this._debugCard(card)),
       serverLogResults: [...(this.serverLogResults || [])],
+      falseFlagResults: [...(this.falseFlagResults || [])],
       reconResult: this.reconResult,
     };
 
@@ -220,9 +225,10 @@ class GameSystem {
       if (card.name === 'Rapid Incident Response') return 0;
       if (card.type === 'attack') return 1;
       if (card.type === 'defence' || card.name === 'Insider Sabotage') return 2;
-      if (card.name === 'Check Server Log') return 3;
-      if (card.type === 'task') return 4;
-      return 5;
+      if (card.name === 'False Flag') return 3;
+      if (card.name === 'Check Server Log') return 4;
+      if (card.type === 'task') return 5;
+      return 6;
     };
 
     return [...cards].sort((a, b) => rank(a) - rank(b) || this._randomTie());
@@ -395,6 +401,22 @@ class GameSystem {
     this.currentCardEvents.push({ kind: 'reconnaissance' });
   }
 
+
+  resolveFalseFlag(card) {
+    const ownerName = card.owner?.name || null;
+    const names = Object.keys(this.submissionSnapshot || {}).filter(name => name !== ownerName);
+    let targetName = card.targetPlayerName || null;
+
+    if (!targetName || targetName === '__random__' || targetName === 'random' || !names.includes(targetName)) {
+      targetName = names.length ? names[Math.floor(Math.random() * names.length)] : null;
+    }
+
+    const result = { ownerName, targetName, framed: Boolean(targetName) };
+    if (targetName) this.falseFlagFrames[targetName] = result;
+    this.falseFlagResults.push(result);
+    this.currentCardEvents.push({ kind: 'false-flag-frame', ...result });
+  }
+
   resolveCheckServerLog(card) {
     const ownerName = card.owner?.name || null;
 
@@ -419,7 +441,8 @@ class GameSystem {
     }
 
     const submitted = targetName ? (this.submissionSnapshot[targetName] || []) : [];
-    const hostile = submitted.some(entry => entry.isHostile || entry.type === 'attack');
+    const framed = Boolean(targetName && this.falseFlagFrames?.[targetName]);
+    const hostile = framed || submitted.some(entry => entry.isHostile || entry.type === 'attack');
     const result = { ownerName, targetName, hostile, checked: Boolean(targetName), insufficientEvidence: false };
     this.serverLogResults.push(result);
     this.currentCardEvents.push({ kind: 'server-log-check', ...result });
@@ -583,6 +606,7 @@ class GameSystem {
     const sabotage = cardEvents.find(event => event.kind === 'sabotage-installed');
     const capacityReduced = cardEvents.find(event => event.kind === 'processing-capacity-reduced');
     const logCheck = cardEvents.find(event => event.kind === 'server-log-check');
+    const falseFlag = cardEvents.find(event => event.kind === 'false-flag-frame');
     const hackerRevealed = cardEvents.find(event => event.kind === 'hacker-revealed-by-evidence');
     const evidenceGained = afterEvidence - beforeEvidence;
 
@@ -630,6 +654,13 @@ class GameSystem {
         message = `Someone attempted to complete ${displayCardName(card)}, but it did not advance the project.`;
       }
       outcome = 'task';
+    } else if (falseFlag) {
+      title = falseFlag.framed ? 'False flag planted' : 'False flag failed';
+      message = falseFlag.framed
+        ? 'A misleading hostile-action trail was planted in the server logs.'
+        : 'A misleading hostile-action trail was attempted, but there was no valid target.';
+      outcome = 'false-flag';
+      revealOwner = false;
     } else if (logCheck) {
       title = 'Private investigation';
       message = 'A private investigation resolved.';
@@ -637,12 +668,14 @@ class GameSystem {
       revealOwner = false;
     } else if (card.name === 'Rapid Incident Response') {
       title = 'Rapid response ready';
-      message = `${ownerName || 'A player'} prepared Rapid Incident Response. It will block one attack this turn only.`;
+      message = 'Someone prepared Rapid Incident Response. It will block one attack this turn only.';
       outcome = 'response-ready';
-    } else if (card.name === 'Threat Mitigation Protocol') {
+      revealOwner = false;
+    } else if (card.name === 'Forensic Analysis') {
       title = 'Evidence gained';
-      message = `${ownerName || 'A player'} coordinated threat mitigation. The team gained ${Math.max(0, evidenceGained) || 1} Evidence.${hackerRevealed ? ' Evidence reached 5, so the Hacker is now publicly exposed.' : ''}`;
+      message = `Someone completed Forensic Analysis. The team gained ${Math.max(0, evidenceGained) || 1} Evidence.${hackerRevealed ? ' Evidence reached 5, so the Hacker is now publicly exposed.' : ''}`;
       outcome = 'evidence';
+      revealOwner = false;
     } else if (card.name === 'Reconnaissance') {
       title = 'Reconnaissance complete';
       message = 'A private reconnaissance report will be shown to the Hacker.';

@@ -93,12 +93,11 @@ export const EnterDetails = ({ socket, name, setName, room, setRoom, creating })
       display="flex" flexDirection="column" alignItems="center"
       justifyContent="center" minHeight="100vh" px={2}
       sx={{
-        background: "var(--bg)",
-        backgroundImage: `
-          linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px)
-        `,
-        backgroundSize: "60px 60px",
+        background: "var(--backdrop-background, var(--bg))",
+        backgroundImage: "var(--backdrop-image)",
+        backgroundSize: "var(--backdrop-size)",
+        backgroundPosition: "var(--backdrop-position)",
+        backgroundRepeat: "var(--backdrop-repeat)",
       }}
     >
       {/* Title */}

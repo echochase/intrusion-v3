@@ -78,12 +78,11 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
     <Box sx={{
       minHeight: "100vh",
       display: "flex", alignItems: "center", justifyContent: "center",
-      py: 4, background: "var(--bg)",
-      backgroundImage: `
-        linear-gradient(rgba(0,255,136,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,255,136,0.025) 1px, transparent 1px)
-      `,
-      backgroundSize: "60px 60px",
+      py: 4, background: "var(--backdrop-background, var(--bg))",
+      backgroundImage: "var(--backdrop-image)",
+      backgroundSize: "var(--backdrop-size)",
+      backgroundPosition: "var(--backdrop-position)",
+      backgroundRepeat: "var(--backdrop-repeat)",
     }}>
       <Container maxWidth="sm">
         <Box sx={{

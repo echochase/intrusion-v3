@@ -1,12 +1,13 @@
 const Card = require('../Card');
+const { Lane } = require('../../defines');
 
 class Reconnaissance extends Card {
   constructor(owner = null) {
     super({
       name: 'Reconnaissance',
       type: 'action',
-      description: 'Quietly review the other players’ hands at the end of the cycle without raising suspicion.',
-      effectDescription: 'Hacker action: at the end of the turn, privately view each other player’s hand in a 2x2 grid. This is not hostile.',
+      description: 'Some passive recon never hurts.',
+      effectDescription: 'At the end of the turn, privately view each player’s hand. Stealth: this is not hostile and will not show up as a hostile action.',
       owner,
       hackerOnly: true,
       isHostile: false,
@@ -18,13 +19,34 @@ class Reconnaissance extends Card {
   }
 }
 
+class FalseFlag extends Card {
+  constructor(owner = null) {
+    super({
+      name: 'False Flag',
+      type: 'action',
+      lane: Lane.SPECIAL,
+      category: 'Deception',
+      description: 'Leave forged evidence in the logs.',
+      effectDescription: 'Choose a player. The card they play this turn appears hostile. This card is not hostile.',
+      owner,
+      hackerOnly: true,
+      isHostile: false,
+    });
+  }
+
+  onProcess(system) {
+    system.resolveFalseFlag(this);
+  }
+}
+
+
 class CheckServerLog extends Card {
   constructor(owner = null) {
     super({
       name: 'Check Server Log',
       type: 'action',
       description: 'Best to check the server log for any suspicious activities.',
-      effectDescription: 'Costs 1 Evidence. Choose one player, or Random. Privately learn whether that player has played a hostile card this cycle.',
+      effectDescription: 'Choose a player. Check whether the card played by the target this turn is hostile.',
       owner,
     });
   }
@@ -43,8 +65,8 @@ class RapidIncidentResponseAction extends Card {
     super({
       name: 'Rapid Incident Response',
       type: 'action',
-      description: 'Prevention is better than a cure, but sometimes we need a quick cure to stop further damage!',
-      effectDescription: 'Nullify an attack that is occurring in the same turn. DDoS attacks take priority. Otherwise, if there are multiple attacks during this turn, neutralise the first one. Priority: compute this card first amongst all other cards.',
+      description: 'Prevention is better, but sometimes we need a quick cure to stop further damage!',
+      effectDescription: 'Nullify an attack that is occurring in the same turn. DDoS attacks take priority. Priority: compute this card first amongst all other cards.',
       owner,
     });
   }
@@ -54,13 +76,13 @@ class RapidIncidentResponseAction extends Card {
   }
 }
 
-class ThreatMitigationProtocol extends Card {
+class ForensicAnalysis extends Card {
   constructor(owner = null) {
     super({
-      name: 'Threat Mitigation Protocol',
+      name: 'Forensic Analysis',
       type: 'action',
-      description: 'Hey, that doesn’t look right! Stop that request from going through!',
-      effectDescription: 'Gain 1 Evidence. Evidence can help the team investigate suspicious submissions.',
+      description: 'Review access logs, packet trails, and system anomalies.',
+      effectDescription: 'Gain 1 Evidence.',
       owner,
     });
   }
@@ -72,7 +94,8 @@ class ThreatMitigationProtocol extends Card {
 
 module.exports = {
   Reconnaissance,
+  FalseFlag,
   CheckServerLog,
   RapidIncidentResponseAction,
-  ThreatMitigationProtocol,
+  ForensicAnalysis,
 };

@@ -98,7 +98,7 @@ class ResponsibleEngineer extends CoreTask {
       lanes: [Lane.CREDENTIALS],
       owner,
       progressPoints: 1,
-      actionText: 'Assign a responsible engineer to audit privileged account access',
+      actionText: 'Audit privileged account access',
     });
   }
 }

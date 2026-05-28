@@ -32,6 +32,16 @@
   --text-muted:    #4a7a5a;
   --text-dim:      #2a4a35;
 
+  --backdrop-background: var(--bg);
+  --backdrop-image:
+    linear-gradient(rgba(0,255,136,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.025) 1px, transparent 1px),
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,0.01) 2px, rgba(0,255,136,0.01) 4px);
+  --backdrop-size: 60px 60px, 60px 60px, 100% 100%;
+  --backdrop-position: center center;
+  --backdrop-repeat: repeat, repeat, repeat;
+  --backdrop-attachment: fixed;
+
   font-family: 'Share Tech Mono', 'Courier New', monospace;
   line-height: 1.6;
   font-weight: 400;
@@ -43,21 +53,95 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+:root[data-theme="futuristic"] {
+  --bg:            #020712;
+  --bg-2:          #071223;
+  --surface:       #071322;
+  --surface-2:     #0d1c2f;
+  --surface-3:     #132942;
+
+  --border:        rgba(0, 212, 255, 0.18);
+  --border-bright: rgba(0, 212, 255, 0.55);
+  --border-dim:    rgba(0, 212, 255, 0.08);
+
+  --green:         #00d4ff;
+  --green-dim:     #00a5d6;
+  --green-dark:    #006b8a;
+  --green-glow:    rgba(0, 212, 255, 0.16);
+
+  --cyan:          #9d7cff;
+  --cyan-dim:      #6b55c7;
+  --cyan-glow:     rgba(157, 124, 255, 0.14);
+
+  --text:          #d6eef8;
+  --text-bright:   #f2fcff;
+  --text-muted:    #6fa3b4;
+  --text-dim:      #355d6c;
+}
+
+:root[data-theme="simple"] {
+  --bg:            #050607;
+  --bg-2:          #090b0d;
+  --surface:       #101316;
+  --surface-2:     #171b1f;
+  --surface-3:     #20252a;
+
+  --border:        rgba(220, 228, 232, 0.16);
+  --border-bright: rgba(220, 228, 232, 0.34);
+  --border-dim:    rgba(220, 228, 232, 0.08);
+
+  --green:         #dce4e8;
+  --green-dim:     #aeb8bd;
+  --green-dark:    #6f7a80;
+  --green-glow:    rgba(220, 228, 232, 0.11);
+
+  --cyan:          #c8d0d4;
+  --cyan-dim:      #8b969d;
+  --cyan-glow:     rgba(200, 208, 212, 0.1);
+
+  --red:           #ff6b7d;
+  --red-dim:       #cb3f51;
+  --red-glow:      rgba(255, 107, 125, 0.13);
+
+  --amber:         #d9b36c;
+  --amber-dim:     #ab8951;
+
+  --text:          #d7dddf;
+  --text-bright:   #f2f4f5;
+  --text-muted:    #8b969d;
+  --text-dim:      #555f66;
+}
+
+:root[data-background="grand"] {
+  --backdrop-background: #020408;
+  --backdrop-image: var(--active-background-image, linear-gradient(180deg, #020408 0%, #07141d 52%, #020408 100%));
+  --backdrop-size: cover;
+  --backdrop-position: center center;
+  --backdrop-repeat: no-repeat;
+  --backdrop-attachment: fixed;
+}
+
+:root[data-background="pencil"] {
+  --backdrop-background: #f1eee6;
+  --backdrop-image: var(--active-background-image, linear-gradient(180deg, #f1eee6 0%, #d8d1c3 100%));
+  --backdrop-size: cover;
+  --backdrop-position: center center;
+  --backdrop-repeat: no-repeat;
+  --backdrop-attachment: fixed;
+}
+
 html, body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background: var(--backdrop-background, var(--bg));
+  background-image: var(--backdrop-image);
+  background-size: var(--backdrop-size);
+  background-position: var(--backdrop-position);
+  background-repeat: var(--backdrop-repeat);
+  background-attachment: var(--backdrop-attachment);
   color: var(--text);
   font-family: 'Share Tech Mono', monospace;
-  background-image:
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0, 255, 136, 0.012) 2px,
-      rgba(0, 255, 136, 0.012) 4px
-    );
 }
 
 #root {
@@ -105,7 +189,7 @@ button:hover {
   color: var(--text-bright);
   border-color: var(--green);
   background: var(--green-glow);
-  box-shadow: 0 0 14px rgba(0, 255, 136, 0.25);
+  box-shadow: 0 0 14px var(--green-glow);
 }
 
 button:focus, button:focus-visible {

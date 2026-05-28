@@ -29,7 +29,7 @@ class CredentialTheft extends LaneAttack {
       category: 'Credential',
       owner,
       description: "Look over a tech’s shoulder as they log in to the system. It’s easier if you’re friends.",
-      effectDescription: 'Attacks the Credential Lane. Blocked by Two-Factor Authentication.',
+      effectDescription: 'Removes 1 integrity point. Attacks the Credential Lane. Blocked by Two-Factor Authentication.',
     });
   }
 }
@@ -42,7 +42,7 @@ class Phishing extends LaneAttack {
       category: 'Social',
       owner,
       description: 'Send spam from a fake address. The more specific that you can make the spam, the more believable it is!',
-      effectDescription: 'Attacks the Social Lane. Blocked by Employee Awareness.',
+      effectDescription: 'Removes 1 integrity point. Attacks the Social Lane. Blocked by Employee Awareness.',
     });
   }
 }
@@ -54,8 +54,8 @@ class XSSAttack extends LaneAttack {
       lane: Lane.WEB,
       category: 'Web',
       owner,
-      description: "Inject a malicious XSS payload into a vulnerable web application. The payload will be stored within the application to steal future visitors' session cookies.",
-      effectDescription: 'Attacks the Web Lane. Blocked by Input Sanitisation.',
+      description: 'Inject a malicious XSS payload into a vulnerable web application. Steal a couple session cookies.',
+      effectDescription: 'Removes 1 integrity point. Attacks the Web Lane. Blocked by Input Sanitisation.',
     });
   }
 }
@@ -67,8 +67,8 @@ class DDoS extends LaneAttack {
       lane: Lane.NETWORK,
       category: 'Network',
       owner,
-      description: 'Purchase a botnet of compromised computers and overwhelm the system with requests, limiting processing power until an Anti-DDoS countermeasure is deployed.',
-      effectDescription: 'Attacks the Network Lane. Blocked by Anti-DDoS Defence. If the Network Lane is open, processing power is limited by 2 cards while the DDoS is ongoing; deploy Anti-DDoS Defence as the countermeasure.',
+      description: 'Purchase a botnet and overwhelm the system with requests.',
+      effectDescription: 'Until stopped, reduces the maximum processed actions per turn by 2. Attacks the Network Lane. Blocked by Anti-DDoS Defence.',
     });
   }
 }
@@ -81,7 +81,7 @@ class PhysicalDataTheft extends LaneAttack {
       category: 'Physical',
       owner,
       description: 'Sneak into the tech department and steal sensitive information. Don’t get caught!',
-      effectDescription: 'Attacks the Physical Lane. Blocked by Security Detail.',
+      effectDescription: 'Removes 1 integrity point. Attacks the Physical Lane. Blocked by Security Detail.',
     });
   }
 }
@@ -94,8 +94,8 @@ class InsiderSabotage extends Card {
       type: 'action',
       lane: Lane.SPECIAL,
       category: 'Sabotage',
-      description: 'Plant an insider in the security workflow to quietly occupy one defence slot without protecting any Lane.',
-      effectDescription: 'Hacker action: takes up a defence slot but does not block attacks or protect tasks. This is hostile.',
+      description: 'Pay an intern to do a lousy job at defending the system. And to not ask questions.',
+      effectDescription: 'Put this card in a defence slot. This card will occupy that slot until it is replaced.',
       owner,
       hackerOnly: true,
       isHostile: true,
@@ -114,8 +114,8 @@ class ZeroDay extends Card {
       type: 'attack',
       lane: Lane.SPECIAL,
       category: 'Zero-Day',
-      description: 'No system is perfect. Took a while to find, but the techs overlooked this obscure vulnerability here… let’s see how far it goes.',
-      effectDescription: 'Late-game only: can be played when the engineers are within 2 progress of winning and the system has at least 2 integrity. Remove 1 integrity. Cannot be blocked.',
+      description: 'Exploit a previously unknown vulnerability before the defenders have a patch, signature, or reliable way to recognise the threat.',
+      effectDescription: 'Condition: can only be played when the SecEng team is within 2 progress of completing the project. Removes 1 integrity point. This attack cannot be blocked by lane defences.',
       owner,
       hackerOnly: true,
       isHostile: true,

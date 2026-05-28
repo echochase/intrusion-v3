@@ -22,7 +22,7 @@ test('turn resolution uses the documented priority buckets', () => {
   const defence = new defences.TwoFactorAuthentication(engineer);
   const logCheck = new actions.CheckServerLog(engineer);
   const task = new tasks.ResponsibleEngineer(engineer);
-  const evidence = new actions.ThreatMitigationProtocol(engineer);
+  const evidence = new actions.ForensicAnalysis(engineer);
 
   for (const card of [evidence, task, logCheck, defence, attack, rapid]) {
     card.owner = card.owner || engineer;
@@ -42,9 +42,34 @@ test('turn resolution uses the documented priority buckets', () => {
       'Two-Factor Authentication',
       'Check Server Log',
       'Responsible Engineer',
-      'Threat Mitigation Protocol',
+      'Forensic Analysis',
     ],
   );
+});
+
+
+test('Rapid Incident Response and Forensic Analysis resolve anonymously in public reports', () => {
+  const system = new GameSystem(4);
+  const engineer = new SecurityEngineer('Engineer');
+
+  const rapid = new actions.RapidIncidentResponseAction(engineer);
+  const forensic = new actions.ForensicAnalysis(engineer);
+  system.addProcess(rapid);
+  system.addProcess(forensic);
+
+  const logs = system.consumeProcesses(2, {
+    Engineer: [rapid.toJSON(), forensic.toJSON()],
+  }).map((entry) => entry.toJSON());
+
+  const rapidEvent = system.incidentEvents.find((event) => event.cardName === 'Rapid Incident Response');
+  const forensicEvent = system.incidentEvents.find((event) => event.cardName === 'Forensic Analysis');
+
+  assert.equal(rapidEvent.ownerName, null);
+  assert.equal(forensicEvent.ownerName, null);
+  assert.match(rapidEvent.message, /^Someone prepared Rapid Incident Response/);
+  assert.match(forensicEvent.message, /^Someone completed Forensic Analysis/);
+
+  assert.equal(logs.some((entry) => entry.publicMessage?.includes('Engineer')), false);
 });
 
 test('Rapid Incident Response nullifies one attack before it can affect integrity', () => {

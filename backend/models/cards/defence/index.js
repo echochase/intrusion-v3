@@ -26,7 +26,7 @@ class TwoFactorAuthentication extends LaneDefence {
       lane: Lane.CREDENTIALS,
       owner,
       description: 'Enforce 2-factor authentication. Nothing too fancy, just a temp code sent to your phone during login.',
-      effectDescription: 'Defends the Credential Lane. Blocks Credential Theft and lets matching Credential tasks resolve for +1 Project Progress.',
+      effectDescription: 'Defends the Credential Lane. Blocks Credential Theft.',
     });
   }
 }
@@ -38,7 +38,7 @@ class EmployeeAwareness extends LaneDefence {
       lane: Lane.SOCIAL,
       owner,
       description: 'Increase everyone’s cyber-awareness about what phishing attacks look like and how they operate!',
-      effectDescription: 'Defends the Social Lane. Blocks Phishing and lets matching Social tasks resolve for +1 Project Progress.',
+      effectDescription: 'Defends the Social Lane. Blocks Phishing.',
     });
   }
 }
@@ -50,7 +50,7 @@ class InputSanitisation extends LaneDefence {
       lane: Lane.WEB,
       owner,
       description: 'Are you crazy? Sanitise the user input first before allowing it into your code! Escape, whitelist, do whatever it takes!',
-      effectDescription: 'Defends the Web Lane. Blocks XSS Attack and lets matching Web tasks resolve for +1 Project Progress.',
+      effectDescription: 'Defends the Web Lane. Blocks XSS Attack.',
     });
   }
 }
@@ -61,8 +61,8 @@ class AntiDDoSDefence extends LaneDefence {
       name: 'Anti-DDoS Defence',
       lane: Lane.NETWORK,
       owner,
-      description: 'Hire a DDoS Mitigation Service at the ready. Comes with traffic monitoring, behavioural analysis, web application firewalls, all the good stuff.',
-      effectDescription: 'Defends the Network Lane. Blocks DDoS Attack and lets matching Network tasks resolve for +1 Project Progress.',
+      description: 'Hire a DDoS Mitigation Service. Comes with traffic monitoring, behavioural analysis, WAFs, all the good stuff.',
+      effectDescription: 'Defends the Network Lane. Blocks DDoS Attack.',
     });
   }
 }
@@ -74,7 +74,7 @@ class SecurityDetail extends LaneDefence {
       lane: Lane.PHYSICAL,
       owner,
       description: 'Hire a team of security guards to maintain physical security on campus and prevent theft.',
-      effectDescription: 'Defends the Physical Lane. Blocks Physical Data Theft and lets matching Physical tasks resolve for +1 Project Progress.',
+      effectDescription: 'Defends the Physical Lane. Blocks Physical Data Theft.',
     });
   }
 }

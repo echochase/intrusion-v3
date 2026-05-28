@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "@mui/material";
 import { GameInfoModal } from "../components/GameInfoModal";
+import { cardTextFor, enrichCardText } from "../data/cardText";
 import "../styles/game.css";
 
 const cardModules = import.meta.glob(
@@ -62,9 +63,10 @@ const KNOWN_CARD_NAMES = Array.from(new Set([
   "Credential Theft",
   "XSS Attack",
   "Rapid Incident Response",
-  "Threat Mitigation Protocol",
+  "Forensic Analysis",
   "Check Server Log",
   "Reconnaissance",
+  "False Flag",
   "Two-Factor Authentication",
   "Anti-DDoS Defence",
   "Employee Awareness",
@@ -159,6 +161,7 @@ function imageFor(card) {
   const aliases = {
     reflectedxss: "xssattack",
     storedxss: "xssattack",
+    forensicanalysis: "forensicanalysis",
   };
   if (aliases[compact] && compactCardImageMap[aliases[compact]]) {
     return compactCardImageMap[aliases[compact]];
@@ -211,6 +214,15 @@ function submissionKind(card) {
 
 function usesDefenceSlot(card) {
   return Boolean(card && (card.type === 'defence' || card.name === 'Insider Sabotage' || card.category === 'Sabotage'));
+}
+
+function usesPlayerTarget(card) {
+  return Boolean(card && (card.name === 'Check Server Log' || card.name === 'False Flag'));
+}
+
+function playerTargetLabel(card) {
+  if (card?.name === 'False Flag') return 'Frame target';
+  return 'Log target';
 }
 
 function maxSubmitCardsFor(player) {
@@ -266,8 +278,29 @@ function CardCostChips({ card }) {
   ));
 }
 
+function cleanEffectText(value = '') {
+  return String(value).replace(/^Effect:\s*/i, '').trim();
+}
+
+function cardDescription(card) {
+  const fallback = cardTextFor(card?.name);
+  return (card?.description || fallback.description || '').trim();
+}
+
+function cardEffect(card) {
+  const fallback = cardTextFor(card?.name);
+  return cleanEffectText(card?.effectDescription || fallback.effectDescription || '');
+}
+
 function effectText(card) {
-  return card?.effectDescription || card?.description || 'No extra effect text.';
+  const description = cardDescription(card);
+  const effect = cardEffect(card);
+  const lines = [];
+
+  if (description) lines.push(description);
+  if (effect && effect !== description) lines.push(`Effect: ${effect}`);
+
+  return lines.join('\n') || 'No extra effect text.';
 }
 
 function hoverCardName(card) {
@@ -366,13 +399,13 @@ function CardTile({
       {showDetails && (
         <div className="play-card-details">
           <strong>{hoverLabel}</strong>
-          <p>Click and hold for details.</p>
           <div className="cost-chip-row">
             <CardCostChips card={card} />
             {card?.deployTime > 0 && (
               <span className="cost-chip cost-delay">{card.deployTime} turn pending</span>
             )}
           </div>
+          <span className="play-card-inspect-hint">Click and hold for more details.</span>
         </div>
       )}
 
@@ -465,7 +498,7 @@ function LaneBoard({ lanes = [], onInspect }) {
           onClick={() => lane.defence && onInspect?.(lane.defence)}
         >
           <span className="lane-name">{lane.label}</span>
-          <strong>{lane.status === 'defended' ? 'DEFENDED' : 'OPEN'}</strong>
+          <strong>{lane.ddosActive ? 'UNDER ATTACK' : lane.status === 'defended' ? 'DEFENDED' : 'OPEN'}</strong>
           <small>{lane.defence?.name || lane.expectedDefence}</small>
         </button>
       ))}
@@ -608,7 +641,8 @@ function LogModal({ open, onClose, logs }) {
 }
 
 function CardPreviewModal({ card, onClose }) {
-  const src = imageFor(card);
+  const displayCard = enrichCardText(card);
+  const src = imageFor(displayCard);
 
   return (
     <Modal open={Boolean(card)} onClose={onClose}>
@@ -616,23 +650,23 @@ function CardPreviewModal({ card, onClose }) {
         <div className="card-preview-panel" onClick={(event) => event.stopPropagation()}>
           <div className="card-preview-art">
             {src ? (
-              <img src={src} alt={card?.name} draggable={false} />
+              <img src={src} alt={displayCard?.name} draggable={false} />
             ) : (
               <div className="play-card-fallback">
-                <span>{card?.type || 'card'}</span>
-                <strong>{card?.name}</strong>
+                <span>{displayCard?.type || 'card'}</span>
+                <strong>{displayCard?.name}</strong>
               </div>
             )}
           </div>
 
           <div className="card-preview-copy">
-            <span>{card?.type}</span>
-            <h2>{card?.name}</h2>
-            <p>{effectText(card)}</p>
+            <span>{displayCard?.type}</span>
+            <h2>{displayCard?.name}</h2>
+            <p>{effectText(displayCard)}</p>
             <div className="cost-chip-row">
-              <CardCostChips card={card} />
-              {card?.deployTime > 0 && (
-                <span className="cost-chip cost-delay">{card.deployTime} turn pending</span>
+              <CardCostChips card={displayCard} />
+              {displayCard?.deployTime > 0 && (
+                <span className="cost-chip cost-delay">{displayCard.deployTime} turn pending</span>
               )}
             </div>
             <button type="button" onClick={onClose}>Close</button>
@@ -655,17 +689,35 @@ function taskFeatureChips(task) {
   const text = `${task?.effectDescription || ''}\n${task?.description || ''}`.toLowerCase();
   const chips = [];
   if ((task?.deployTime ?? 0) > 0) chips.push(`PENDING ${task.deployTime} TURN${task.deployTime === 1 ? '' : 'S'}`);
-  if (text.includes('condition')) chips.push('CONDITION');
   if (text.includes('side effect')) chips.push('SIDE EFFECT');
   if (text.includes('trigger')) chips.push('TRIGGER');
   return chips;
 }
 
+function withoutConditionPrefix(line = '') {
+  const cleaned = String(line).replace(/^Condition:\s*/i, '').trim();
+  return cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : cleaned;
+}
+
+function taskDisplayDescription(task) {
+  const libraryText = cardTextFor(task?.name);
+  const source = libraryText.description || task?.description || 'No task description.';
+  const lines = splitLines(source).map(withoutConditionPrefix);
+  return lines.find((line) => !/^to complete this card/i.test(line)) || lines[0] || 'No task description.';
+}
+
+function taskRequirementLines(task) {
+  const libraryText = cardTextFor(task?.name);
+  const source = libraryText.effectDescription || task?.effectDescription || 'No special requirements.';
+  return splitLines(source).map(withoutConditionPrefix).filter(Boolean);
+}
+
 function TaskDetails({ task }) {
   if (!task) return <p>No task assigned.</p>;
 
-  const detailLines = splitLines(task.effectDescription || 'No special requirements.');
+  const detailLines = taskRequirementLines(task);
   const features = taskFeatureChips(task);
+  const description = taskDisplayDescription(task);
 
   return (
     <div className="task-detail-card">
@@ -678,7 +730,7 @@ function TaskDetails({ task }) {
         </div>
       </div>
 
-      <p className="task-description">{task.description || 'No task description.'}</p>
+      <p className="task-description">{description}</p>
 
       {features.length > 0 && (
         <div className="task-feature-row">
@@ -755,18 +807,22 @@ function ReconReportModal({ report, onClose, onInspect }) {
                   <p className="recon-empty">empty hand</p>
                 ) : (
                   <div className="recon-card-list">
-                    {player.cards.map((card) => (
-                      <button
-                        key={card.id || `${player.name}-${card.name}`}
-                        type="button"
-                        className="recon-card-chip"
-                        title={card.effectDescription || card.description || card.name}
-                        onClick={() => onInspect?.(card)}
-                      >
-                        <strong><TextWithHighlightedCards text={card.name} preferred={[card.name, card.rawName]} /></strong>
-                        <span>{card.type}{card.laneLabel ? ` // ${card.laneLabel}` : ''}</span>
-                      </button>
-                    ))}
+                    {player.cards.map((card) => {
+                      const displayCard = enrichCardText(card);
+                      return (
+                        <button
+                          key={displayCard.id || `${player.name}-${displayCard.name}`}
+                          type="button"
+                          className="recon-card-chip"
+                          title={effectText(displayCard)}
+                          onClick={() => onInspect?.(displayCard)}
+                        >
+                          <strong><TextWithHighlightedCards text={displayCard.name} preferred={[displayCard.name, displayCard.rawName]} /></strong>
+                          <span>{displayCard.type}{displayCard.laneLabel ? ` // ${displayCard.laneLabel}` : ''}</span>
+                          <em className="recon-card-effect">{effectText(displayCard)}</em>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -778,10 +834,9 @@ function ReconReportModal({ report, onClose, onInspect }) {
   );
 }
 
-function IncidentReportModal({ open, pages, index, setIndex, onClose }) {
+function IncidentReportModal({ open, pages, index, setIndex, onClose, onInspect }) {
   const page = pages[index] || pages[0];
-  const card = page?.card || null;
-  const src = imageFor(card);
+  const card = page?.card ? enrichCardText(page.card) : null;
   const isPrivate = page?.type === 'private';
 
   const goPrev = () => setIndex((current) => Math.max(0, current - 1));
@@ -801,12 +856,13 @@ function IncidentReportModal({ open, pages, index, setIndex, onClose }) {
 
           <div className="incident-body">
             {card && (
-              <div className="incident-card-art">
-                {src ? (
-                  <img src={src} alt={card.name} draggable={false} />
-                ) : (
-                  <div className="play-card-fallback"><span>{card.type}</span><strong>{card.name}</strong></div>
-                )}
+              <div className="incident-card-tile">
+                <CardTile
+                  card={card}
+                  compact
+                  onInspect={onInspect}
+                  onClick={() => onInspect?.(card)}
+                />
               </div>
             )}
 
@@ -1276,6 +1332,16 @@ export const Game = ({ socket, name, room, setRoom }) => {
         },
       }));
     }
+
+    if (usesPlayerTarget(card)) {
+      setCardTargets((current) => ({
+        ...current,
+        [card.id]: {
+          ...(current[card.id] || {}),
+          targetPlayerName: current[card.id]?.targetPlayerName || "__random__",
+        },
+      }));
+    }
     setError("");
   };
 
@@ -1488,6 +1554,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
                 draggable={canAct && !mustDiscard && !stagedIds.includes(task.id) && isTaskLaneDefended(system, task)}
                 disabled={!canAct || mustDiscard}
                 onClick={() => stageCard(task.id)}
+                onInspect={setPreviewCard}
                 onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
               />
               <TaskDetails task={task} />
@@ -1543,20 +1610,16 @@ export const Game = ({ socket, name, room, setRoom }) => {
                 </div>
               )}
 
-              {!hasSubmitted && stagedCards.some((card) => card.name === "Check Server Log") && (
-                <div className="target-selector-row">
-                  <label htmlFor="log-target">Log target</label>
+              {!hasSubmitted && stagedCards.filter(usesPlayerTarget).map((card) => (
+                <div className="target-selector-row" key={`target-${card.id}`}>
+                  <label htmlFor={`player-target-${card.id}`}>{playerTargetLabel(card)}</label>
                   <select
-                    id="log-target"
-                    value={cardTargets[stagedCards.find((card) => card.name === "Check Server Log")?.id]?.targetPlayerName || "__random__"}
-                    onChange={(event) => {
-                      const logCard = stagedCards.find((card) => card.name === "Check Server Log");
-                      if (!logCard) return;
-                      setCardTargets((current) => ({
-                        ...current,
-                        [logCard.id]: { ...(current[logCard.id] || {}), targetPlayerName: event.target.value },
-                      }));
-                    }}
+                    id={`player-target-${card.id}`}
+                    value={cardTargets[card.id]?.targetPlayerName || "__random__"}
+                    onChange={(event) => setCardTargets((current) => ({
+                      ...current,
+                      [card.id]: { ...(current[card.id] || {}), targetPlayerName: event.target.value },
+                    }))}
                   >
                     <option value="__random__">Random</option>
                     {gameState.players
@@ -1564,7 +1627,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
                       .map((player) => <option key={player.name} value={player.name}>{player.name}</option>)}
                   </select>
                 </div>
-              )}
+              ))}
 
               {!hasSubmitted && stagedCards.filter(usesDefenceSlot).map((card) => (
                 <DefenceSlotSelector
@@ -1688,6 +1751,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
         index={incidentReportIndex}
         setIndex={setIncidentReportIndex}
         onClose={closeIncidentReport}
+        onInspect={setPreviewCard}
       />
 
       <VoteProposalModal

@@ -129,16 +129,15 @@ export const HomePage = ({ socket, name, room, setRoom }) => {
       justifyContent="center"
       minHeight="100vh"
       px={2}
-      sx={{ background: "var(--bg)", position: "relative", overflow: "hidden" }}
+      sx={{ background: "var(--backdrop-background, var(--bg))", position: "relative", overflow: "hidden" }}
     >
       {/* Background grid lines */}
       <Box sx={{
         position: "absolute", inset: 0, pointerEvents: "none",
-        backgroundImage: `
-          linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px)
-        `,
-        backgroundSize: "60px 60px",
+        backgroundImage: "var(--backdrop-image)",
+        backgroundSize: "var(--backdrop-size)",
+        backgroundPosition: "var(--backdrop-position)",
+        backgroundRepeat: "var(--backdrop-repeat)",
       }} />
 
       <Fade in timeout={600}>

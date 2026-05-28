@@ -78,3 +78,53 @@ test('private server-log reports are only assigned to the checking player', () =
   assert.ok(summary.privateIncidentReports[checker.name]);
   assert.equal(summary.privateIncidentReports[bystander.name], undefined);
 });
+
+
+test('False Flag frames a clean player as hostile without making the Hacker look hostile', () => {
+  const game = createStartedGame();
+  const hacker = getHacker(game);
+  const framedEngineer = getEngineer(game, 0);
+  const checkingEngineer = getEngineer(game, 1);
+  const [falseFlag] = putInHand(hacker, [new actions.FalseFlag()]);
+  const [logCard] = putInHand(checkingEngineer, [new actions.CheckServerLog()]);
+
+  game.system.evidence = 1;
+  submitAndAssert(game, hacker, [falseFlag.id], {
+    [falseFlag.id]: { targetPlayerName: framedEngineer.name },
+  });
+  submitAndAssert(game, framedEngineer, []);
+  submitAndAssert(game, checkingEngineer, [logCard.id], {
+    [logCard.id]: { targetPlayerName: framedEngineer.name },
+  });
+  passAllExcept(game, [hacker.name, framedEngineer.name, checkingEngineer.name]);
+
+  const { result: summary } = withQuietConsole(() => game.resolveTurn());
+
+  assert.equal(falseFlag.isHostile, false);
+  assert.equal(summary.serverLogResults[0].targetName, framedEngineer.name);
+  assert.equal(summary.serverLogResults[0].hostile, true);
+  assert.match(summary.privateIncidentReports[checkingEngineer.name][0].message, /hostile card/i);
+});
+
+test('False Flag itself does not make the Hacker fail a server log check', () => {
+  const game = createStartedGame();
+  const hacker = getHacker(game);
+  const framedEngineer = getEngineer(game, 0);
+  const checkingEngineer = getEngineer(game, 1);
+  const [falseFlag] = putInHand(hacker, [new actions.FalseFlag()]);
+  const [logCard] = putInHand(checkingEngineer, [new actions.CheckServerLog()]);
+
+  game.system.evidence = 1;
+  submitAndAssert(game, hacker, [falseFlag.id], {
+    [falseFlag.id]: { targetPlayerName: framedEngineer.name },
+  });
+  submitAndAssert(game, checkingEngineer, [logCard.id], {
+    [logCard.id]: { targetPlayerName: hacker.name },
+  });
+  passAllExcept(game, [hacker.name, checkingEngineer.name]);
+
+  const { result: summary } = withQuietConsole(() => game.resolveTurn());
+
+  assert.equal(summary.serverLogResults[0].targetName, hacker.name);
+  assert.equal(summary.serverLogResults[0].hostile, false);
+});

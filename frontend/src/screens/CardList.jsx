@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import "../styles/card-list.css";
-import React from "react";
+import React, { useState } from "react";
 import cardBack from "../assets/card-back.png";
+import { cardTextFor, enrichCardText } from "../data/cardText";
 
 const cardModules = import.meta.glob("/src/assets/**/*.{png,jpg,jpeg,webp}", {
   eager: true,
@@ -39,9 +40,10 @@ const assetAliases = {
   antiddosdefence: "antiddosdefence",
   securitydetail: "securitydetail",
   reconnaissance: "reconnaissance",
+  falseflag: "falseflag",
   checkserverlog: "checkserverlog",
   rapidincidentresponse: "rapidincidentresponse",
-  threatmitigationprotocol: "threatmitigationprotocol",
+  forensicanalysis: "forensicanalysis",
 };
 
 function imageForCard(name) {
@@ -56,6 +58,18 @@ function imageForCard(name) {
   return fuzzy?.src || cardBack;
 }
 
+function withCardText(card) {
+  return enrichCardText({ ...card, ...cardTextFor(card.name) });
+}
+
+function cleanEffectText(value = "") {
+  return String(value).replace(/^Effect:\s*/i, "").trim();
+}
+
+function effectText(card) {
+  return cleanEffectText(card?.effectDescription || cardTextFor(card?.name).effectDescription || "");
+}
+
 const attackCards = [
   { name: "Credential Theft", type: "attack", lane: "Credentials", copies: 3, deck: "Hacker" },
   { name: "Phishing", type: "attack", lane: "Social", copies: 3, deck: "Hacker" },
@@ -63,7 +77,7 @@ const attackCards = [
   { name: "DDoS Attack", type: "attack", lane: "Network", copies: 3, deck: "Hacker" },
   { name: "Physical Data Theft", type: "attack", lane: "Physical", copies: 3, deck: "Hacker" },
   { name: "Zero-Day Attack", type: "attack", lane: "Special", copies: 1, deck: "Hacker" },
-];
+].map(withCardText);
 
 const defenceCards = [
   { name: "Two-Factor Authentication", type: "defence", lane: "Credentials", copies: 3, deck: "Security" },
@@ -71,28 +85,29 @@ const defenceCards = [
   { name: "Input Sanitisation", type: "defence", lane: "Web", copies: 3, deck: "Security" },
   { name: "Anti-DDoS Defence", type: "defence", lane: "Network", copies: 3, deck: "Security" },
   { name: "Security Detail", type: "defence", lane: "Physical", copies: 3, deck: "Security" },
-];
+].map(withCardText);
 
 const actionCards = [
   { name: "Reconnaissance", type: "action", lane: "Private", copies: 3, deck: "Hacker" },
+  { name: "False Flag", type: "action", lane: "Deception", copies: 2, deck: "Hacker" },
   { name: "Insider Sabotage", type: "action", lane: "Defence Slot", copies: 3, deck: "Hacker" },
   { name: "Rapid Incident Response", type: "action", lane: "Emergency", copies: 3, deck: "Security" },
   { name: "Check Server Log", type: "action", lane: "Investigation", copies: 3, deck: "Security" },
-  { name: "Threat Mitigation Protocol", type: "action", lane: "Evidence", copies: 3, deck: "Security" },
-];
+  { name: "Forensic Analysis", type: "action", lane: "Evidence", copies: 3, deck: "Security" },
+].map(withCardText);
 
 const taskCards = [
-  { name: "Server Maintenance", type: "task", lane: "Network", copies: 3, deck: "Task" },
-  { name: "Company Meeting", type: "task", lane: "Social", copies: 3, deck: "Task" },
-  { name: "Model Training", type: "task", lane: "Web", copies: 3, deck: "Task" },
-  { name: "Responsible Engineer", type: "task", lane: "Credentials", copies: 3, deck: "Task" },
-  { name: "Hazard Report", type: "task", lane: "Physical", copies: 3, deck: "Task" },
-  { name: "Corporate Announcement", type: "task", lane: "Social", copies: 3, deck: "Task" },
-  { name: "Company Mixer Event", type: "task", lane: "Social", copies: 3, deck: "Task" },
-  { name: "Access Review", type: "task", lane: "Credentials", copies: 3, deck: "Task" },
-  { name: "Secure Build Review", type: "task", lane: "Web", copies: 3, deck: "Task" },
-  { name: "Office Lockup Audit", type: "task", lane: "Physical", copies: 3, deck: "Task" },
-];
+  { name: "Server Maintenance", type: "task", lane: "Network", copies: 2, deck: "Task" },
+  { name: "Company Meeting", type: "task", lane: "Social", copies: 2, deck: "Task" },
+  { name: "Model Training", type: "task", lane: "Web", copies: 2, deck: "Task" },
+  { name: "Responsible Engineer", type: "task", lane: "Credentials", copies: 2, deck: "Task" },
+  { name: "Hazard Report", type: "task", lane: "Physical", copies: 2, deck: "Task" },
+  { name: "Corporate Announcement", type: "task", lane: "Social", copies: 2, deck: "Task" },
+  { name: "Company Mixer Event", type: "task", lane: "Social + Physical", copies: 2, deck: "Task" },
+  { name: "Access Review", type: "task", lane: "Credentials + Web", copies: 2, deck: "Task" },
+  { name: "Secure Build Review", type: "task", lane: "Web + Network", copies: 2, deck: "Task" },
+  { name: "Office Lockup Audit", type: "task", lane: "Physical", copies: 2, deck: "Task" },
+].map(withCardText);
 
 const deckLists = [
   {
@@ -118,21 +133,26 @@ const deckLists = [
   },
 ];
 
-const CardSection = ({ label, cards }) => (
+const CardSection = ({ label, cards, onInspect }) => (
   <div className="card-showcase">
     <div className="card-showcase-inner">
       <div className="showcase-label">{label}</div>
       <div className="card-grid">
         {cards.map((card, index) => (
           <div className="card-item" key={`${card.name}-${index}`} style={{ "--i": index }}>
-            <div className="card-inner">
+            <button
+              type="button"
+              className="card-inner"
+              onClick={() => onInspect(card)}
+            >
               <img src={imageForCard(card.name)} alt={card.name} className="card-image" />
               <div className="card-overlay">
                 <span className="card-name">{card.name}</span>
-                <span className="card-meta">{card.copies}x // {card.lane}</span>
+                <span className="card-meta">{card.copies}x // {card.type} // {card.lane}</span>
+                <span className="card-inspect-hint">Click to inspect</span>
               </div>
               <div className="card-shine" />
-            </div>
+            </button>
           </div>
         ))}
       </div>
@@ -140,7 +160,7 @@ const CardSection = ({ label, cards }) => (
   </div>
 );
 
-const DeckListSection = () => (
+const DeckListSection = ({ onInspect }) => (
   <div className="card-showcase deck-list-showcase">
     <div className="card-showcase-inner">
       <div className="showcase-label">deck lists</div>
@@ -153,11 +173,17 @@ const DeckListSection = () => (
             </div>
             <div className="deck-list-rows">
               {deck.cards.map((card) => (
-                <div className="deck-list-row" key={`${deck.name}-${card.name}`}>
+                <button
+                  type="button"
+                  className="deck-list-row"
+                  key={`${deck.name}-${card.name}`}
+                  onClick={() => onInspect(card)}
+                >
                   <strong>{card.copies}x</strong>
                   <span>{card.name}</span>
                   <em>{card.type} // {card.lane}</em>
-                </div>
+                  <small>{effectText(card)}</small>
+                </button>
               ))}
             </div>
           </section>
@@ -167,8 +193,35 @@ const DeckListSection = () => (
   </div>
 );
 
+function CardLibraryPreviewModal({ card, onClose }) {
+  if (!card) return null;
+  const displayCard = enrichCardText(card);
+
+  return (
+    <div className="card-library-modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="card-library-modal" role="dialog" aria-modal="true" aria-labelledby="card-library-modal-title" onClick={(event) => event.stopPropagation()}>
+        <div className="card-library-modal-art">
+          <img src={imageForCard(displayCard.name)} alt={displayCard.name} />
+        </div>
+        <div className="card-library-modal-copy">
+          <span>{displayCard.type} // {displayCard.lane}</span>
+          <h2 id="card-library-modal-title">{displayCard.name}</h2>
+          <p>{displayCard.description}</p>
+          <p><strong>Effect:</strong> {effectText(displayCard)}</p>
+          <div className="card-library-modal-meta">
+            <span>{displayCard.copies} copies</span>
+            <span>{displayCard.deck} deck</span>
+          </div>
+          <button type="button" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const CardList = () => {
   const navigate = useNavigate();
+  const [previewCard, setPreviewCard] = useState(null);
   const uniqueTotal = attackCards.length + defenceCards.length + actionCards.length + taskCards.length;
   const deckTotal = deckLists.reduce((sum, deck) => sum + deck.count, 0);
 
@@ -176,16 +229,17 @@ export const CardList = () => {
     <div className="card-list-page">
       <header className="card-list-header">
         <span className="header-eyebrow">Classified Database</span>
-        <h1>ARSENAL</h1>
+        <h1>CARD LIBRARY</h1>
         <span className="header-count">{uniqueTotal} live modules // {deckTotal} deck cards</span>
       </header>
 
-      <DeckListSection />
-      <CardSection label="hacker registry" cards={attackCards} />
-      <CardSection label="defence registry" cards={defenceCards} />
-      <CardSection label="action registry" cards={actionCards} />
-      <CardSection label="task registry" cards={taskCards} />
+      <DeckListSection onInspect={setPreviewCard} />
+      <CardSection label="hacker registry" cards={attackCards} onInspect={setPreviewCard} />
+      <CardSection label="defence registry" cards={defenceCards} onInspect={setPreviewCard} />
+      <CardSection label="action registry" cards={actionCards} onInspect={setPreviewCard} />
+      <CardSection label="task registry" cards={taskCards} onInspect={setPreviewCard} />
 
+      <CardLibraryPreviewModal card={previewCard} onClose={() => setPreviewCard(null)} />
       <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
     </div>
   );

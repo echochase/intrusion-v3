@@ -32,6 +32,19 @@ test('Reconnaissance card definition matches its private/non-hostile rules text'
   assert.match(recon.effectDescription, /not hostile/i);
 });
 
+
+test('False Flag is a non-hostile hacker action in the Hacker deck', () => {
+  const card = new actions.FalseFlag();
+  const deck = new HackerDeck();
+  const copies = deck.playPile.filter(deckCard => deckCard.name === 'False Flag');
+
+  assert.equal(card.hackerOnly, true);
+  assert.equal(card.isHostile, false);
+  assert.equal(card.type, 'action');
+  assert.match(card.effectDescription, /not hostile/i);
+  assert.equal(copies.length, 2);
+});
+
 test('Task deck contains exactly 2 copies of each live task card', () => {
   const deck = new TaskDeck();
   const counts = new Map();

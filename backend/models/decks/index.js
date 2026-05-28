@@ -92,6 +92,10 @@ class HackerDeck extends Deck {
         new attacks.InsiderSabotage(),
       );
     }
+
+    for (let i = 0; i < 2; i++) {
+      this.playPile.push(new actions.FalseFlag());
+    }
   }
 }
 
@@ -113,7 +117,7 @@ class SecEngDeck extends Deck {
       this.playPile.push(
         new actions.RapidIncidentResponseAction(),
         new actions.CheckServerLog(),
-        new actions.ThreatMitigationProtocol(),
+        new actions.ForensicAnalysis(),
       );
     }
   }

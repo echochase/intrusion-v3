@@ -138,7 +138,7 @@ class Game {
     for (const card of toPlay) {
       card.owner = player;
       const options = cardOptions?.[card.id] || cardOptions?.[card.name] || {};
-      if (card.name === 'Check Server Log') {
+      if (card.name === 'Check Server Log' || card.name === 'False Flag') {
         card.targetPlayerName = options.targetPlayerName || options.target || null;
       }
       if (card.type === 'defence' || card.name === 'Insider Sabotage' || card.category === 'Sabotage') {
@@ -637,6 +637,8 @@ class Game {
           const laneText = (event.laneLabels || [event.laneLabel || event.lane]).filter(Boolean).join(' + ') || 'matching lane';
           return `Task on ${laneText}: ${event.defended ? 'defended' : 'undefended'}, progress +${event.progress}.`;
         }
+        case 'false-flag-frame':
+          return event.framed ? `${event.ownerName || 'Unknown'} framed ${event.targetName} as hostile for server-log checks.` : `${event.ownerName || 'Unknown'} tried to plant a false flag, but no valid target was available.`;
         case 'server-log-check':
           if (event.insufficientEvidence) return `${event.ownerName} could not check logs: insufficient Evidence.`;
           return `${event.ownerName} checked ${event.targetName || 'nobody'}: ${event.checked ? (event.hostile ? 'hostile card found' : 'no hostile card') : 'not checked'}.`;
@@ -691,6 +693,12 @@ class Game {
       for (const player of debug.reconResult.players) {
         const cards = (player.cards || []).map(card => card.name).join(', ') || 'empty hand';
         console.log(`  ${player.name}: ${cards}`);
+      }
+    }
+    if (debug.falseFlagResults?.length) {
+      console.log('FALSE FLAG FRAMES');
+      for (const result of debug.falseFlagResults) {
+        console.log(`  ${result.ownerName || 'unknown'} -> ${result.targetName || 'none'}: ${result.framed ? 'framed as hostile' : 'no valid target'}`);
       }
     }
     if (debug.serverLogResults?.length) {

@@ -15,7 +15,7 @@ test('Security Engineers may submit at most one card', () => {
   const engineer = getEngineer(game);
   const [rapid, mitigation] = putInHand(engineer, [
     new actions.RapidIncidentResponseAction(),
-    new actions.ThreatMitigationProtocol(),
+    new actions.ForensicAnalysis(),
   ]);
 
   const tooMany = game.submitCards(engineer.name, [rapid.id, mitigation.id]);
@@ -32,7 +32,7 @@ test('the Hacker may submit one Hacker card plus one Security card, but not two 
   const [attack, recon, securityCard] = putInHand(hacker, [
     new attacks.CredentialTheft(),
     new actions.Reconnaissance(),
-    new actions.ThreatMitigationProtocol(),
+    new actions.ForensicAnalysis(),
   ]);
 
   const twoHackerCards = game.submitCards(hacker.name, [attack.id, recon.id]);
@@ -94,7 +94,7 @@ test('a player who must discard cannot submit until the discard requirement is c
   const game = createStartedGame();
   const engineer = getEngineer(game);
   putInHand(engineer, [
-    new actions.ThreatMitigationProtocol(),
+    new actions.ForensicAnalysis(),
     new actions.RapidIncidentResponseAction(),
     new defences.EmployeeAwareness(),
     new defences.InputSanitisation(),
