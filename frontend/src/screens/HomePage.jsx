@@ -129,6 +129,7 @@ export const HomePage = ({ socket, name, room, setRoom }) => {
       justifyContent="center"
       minHeight="100vh"
       px={2}
+      className="home-page themed-screen"
       sx={{ background: "var(--backdrop-background, var(--bg))", position: "relative", overflow: "hidden" }}
     >
       {/* Background grid lines */}
@@ -141,7 +142,7 @@ export const HomePage = ({ socket, name, room, setRoom }) => {
       }} />
 
       <Fade in timeout={600}>
-        <Box mb={6} sx={{ position: "relative", zIndex: 1 }}>
+        <Box className="home-brand-stack" mb={6} sx={{ position: "relative", zIndex: 1 }}>
           {/* Top label */}
           <Box sx={{
             fontFamily: "'Share Tech Mono', monospace",
@@ -155,7 +156,7 @@ export const HomePage = ({ socket, name, room, setRoom }) => {
           </Box>
 
           {/* Main title */}
-          <Box sx={{
+          <Box className="home-title" sx={{
             fontFamily: "'Orbitron', sans-serif",
             fontWeight: 900,
             fontSize: "clamp(2.4rem, 8vw, 5rem)",
@@ -200,7 +201,7 @@ export const HomePage = ({ socket, name, room, setRoom }) => {
       </Fade>
 
       <Fade in timeout={900}>
-        <Stack spacing={1.5} width="100%" maxWidth="300px" alignItems="center" sx={{ position: "relative", zIndex: 1 }}>
+        <Stack className="home-menu-panel" spacing={1.5} width="100%" maxWidth="300px" alignItems="center" sx={{ position: "relative", zIndex: 1 }}>
           {step === 1 ? (
             <>
               <Button variant="outlined" fullWidth sx={accentBtn} onClick={() => setStep(2)}>

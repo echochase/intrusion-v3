@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Container, IconButton, Tooltip, Avatar,
   Box, Button, Stack,
-  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from "@mui/material";
 import Person from "@mui/icons-material/Person";
 import KickIcon from "@mui/icons-material/Close";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import React from "react";
+import { AlertDialog } from "../components/AlertDialog";
 
 const cyberBase = {
   fontFamily: "'Orbitron', sans-serif",
@@ -27,6 +27,14 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
   const [spectators, setSpectators] = useState([]);
   const [ready, setReady] = useState(false);
   const [kicked, setKicked] = useState(false);
+  const [notice, setNotice] = useState(null);
+
+  const showNotice = useCallback((details) => setNotice(details), []);
+  const closeNotice = () => {
+    const afterClose = notice?.afterClose;
+    setNotice(null);
+    afterClose?.();
+  };
 
   const ownerName = players[0]?.name; // first player = room creator
   const isLeader = name === ownerName;
@@ -36,8 +44,22 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
   const leaveLobby   = () => { socket.emit("leave-room", roomCode, name); navigate("/"); };
   const handleKick   = (n) => socket.emit("kick-player", roomCode, name, n);
   const startGame    = () => {
-    if (connectedPlayerCount < 4) { alert("Need at least 4 connected players."); return; }
-    if (connectedPlayerCount > 5) { alert("Max 5 players per room."); return; }
+    if (connectedPlayerCount < 4) {
+      showNotice({
+        title: "Not enough players",
+        message: "Need at least 4 connected players before the simulation can start.",
+        tone: "warning",
+      });
+      return;
+    }
+    if (connectedPlayerCount > 5) {
+      showNotice({
+        title: "Room is full",
+        message: "Max 5 players per room.",
+        tone: "danger",
+      });
+      return;
+    }
     socket.emit("start-game", roomCode, name);
   };
   const signalReady   = () => { socket.emit("player-ready",   roomCode, name); setReady(true); };
@@ -58,7 +80,11 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
     socket.emit("get-players", roomCode);
     socket.on("players-update", updatePlayers);
     socket.on("new-player",     updatePlayers);
-    const onGameError = (message) => alert(message || "Unable to start game.");
+    const onGameError = (message) => showNotice({
+      title: "Unable to start",
+      message: message || "Unable to start game.",
+      tone: "danger",
+    });
 
     socket.on("start-confirm",  () => navigate(`/play/${roomCode}`));
     socket.on("game-error", onGameError);
@@ -69,13 +95,13 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
       socket.off("start-confirm");
       socket.off("game-error", onGameError);
     };
-  }, [socket, roomCode, name, navigate, room, setRoom]);
+  }, [socket, roomCode, name, navigate, room, setRoom, showNotice]);
 
   const mono = { fontFamily: "'Share Tech Mono', monospace" };
   const orb  = { fontFamily: "'Orbitron', sans-serif" };
 
   return (
-    <Box sx={{
+    <Box className="lobby-page themed-screen" sx={{
       minHeight: "100vh",
       display: "flex", alignItems: "center", justifyContent: "center",
       py: 4, background: "var(--backdrop-background, var(--bg))",
@@ -85,7 +111,7 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
       backgroundRepeat: "var(--backdrop-repeat)",
     }}>
       <Container maxWidth="sm">
-        <Box sx={{
+        <Box className="lobby-panel themed-panel" sx={{
           background: "var(--surface)",
           border: "1px solid rgba(0,255,136,0.2)",
           borderRadius: "2px",
@@ -285,27 +311,22 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
         </Box>
       </Container>
 
-      {/* Kicked dialog */}
-      <Dialog open={kicked} onClose={() => navigate("/")}
-        PaperProps={{ sx:{ background:"var(--surface)", border:"1px solid rgba(255,51,85,0.4)", borderRadius:"2px" } }}>
-        <DialogTitle sx={{ fontFamily:"'Orbitron', sans-serif", fontSize:"0.95rem", letterSpacing:"0.12em", color:"#ff3355", textTransform:"uppercase" }}>
-          // REMOVED FROM ROOM
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ fontFamily:"'Share Tech Mono', monospace", fontSize:"0.9rem", color:"var(--text-muted)", lineHeight:1.7 }}>
-            You were removed from this room, or the room state changed unexpectedly.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => navigate("/")} sx={{
-            fontFamily:"'Orbitron', sans-serif", textTransform:"uppercase", letterSpacing:"0.1em",
-            fontSize:"0.72rem", color:"#00ff88",
-            "&:hover":{ background:"rgba(0,255,136,0.08)" },
-          }}>
-            Return Home
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <AlertDialog
+        open={Boolean(notice)}
+        title={notice?.title}
+        message={notice?.message}
+        tone={notice?.tone}
+        onClose={closeNotice}
+      />
+
+      <AlertDialog
+        open={kicked}
+        title="Removed from room"
+        message="You were removed from this room, or the room state changed unexpectedly."
+        tone="danger"
+        actionLabel="Return Home"
+        onClose={() => navigate("/")}
+      />
     </Box>
   );
 };

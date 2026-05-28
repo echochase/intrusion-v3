@@ -1,21 +1,34 @@
 import {
   Box, Button, CircularProgress, Stack, TextField,
 } from "@mui/material";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import React from "react"
+import React from "react";
+import { AlertDialog } from "../components/AlertDialog";
 
 export const EnterDetails = ({ socket, name, setName, room, setRoom, creating }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const pendingSpectatorRef = useRef(false);
+  const [notice, setNotice] = useState(null);
+
+  const showNotice = useCallback((details) => setNotice(details), []);
+  const closeNotice = () => {
+    const afterClose = notice?.afterClose;
+    setNotice(null);
+    afterClose?.();
+  };
 
   const connectSocket = (e, asSpectator = false) => {
     e.preventDefault();
     if (!socket || !name.trim()) return;
     pendingSpectatorRef.current = Boolean(asSpectator);
     if (name.length > 10) {
-      alert("Handle must be 10 characters or fewer.");
+      showNotice({
+        title: "Handle too long",
+        message: "Handle must be 10 characters or fewer.",
+        tone: "warning",
+      });
       return;
     }
     if (creating) {
@@ -41,10 +54,44 @@ export const EnterDetails = ({ socket, name, setName, room, setRoom, creating })
       }
     };
     const handleRoomCreated    = (r, meta = {}) => { if (meta?.participantToken) localStorage.setItem("participantToken", meta.participantToken); setRoom(r); navigate(`/lobby/${r}`, { state: { creating: true } }); setLoading(false); };
-    const handleRoomNotFound   = () => { alert("Room not found. Check the room code."); setRoom(""); setLoading(false); };
-    const handleDuplicateName  = () => { alert("That handle is already connected. If this was you, Join / Resume Room from the home page or wait a moment and try again."); navigate("/join"); setName(""); setLoading(false); };
-    const handleFull           = () => { alert("Player capacity reached. You can still join as a spectator."); setRoom(""); setLoading(false); };
-    const handleGameEnded      = (message) => { alert(message || "That simulation has already ended. Return to the room lobby to start another one."); localStorage.removeItem("participantToken"); setLoading(false); navigate("/"); };
+    const handleRoomNotFound   = () => {
+      setRoom("");
+      setLoading(false);
+      showNotice({
+        title: "Room not found",
+        message: "Check the room code and try again.",
+        tone: "warning",
+      });
+    };
+    const handleDuplicateName  = () => {
+      setName("");
+      setLoading(false);
+      showNotice({
+        title: "Handle already connected",
+        message: "That handle is already connected. If this was you, use Join / Resume Room from the home page or wait a moment and try again.",
+        tone: "warning",
+        afterClose: () => navigate("/join"),
+      });
+    };
+    const handleFull           = () => {
+      setRoom("");
+      setLoading(false);
+      showNotice({
+        title: "Room is full",
+        message: "Player capacity has been reached. You can still join as a spectator.",
+        tone: "danger",
+      });
+    };
+    const handleGameEnded      = (message) => {
+      localStorage.removeItem("participantToken");
+      setLoading(false);
+      showNotice({
+        title: "Simulation ended",
+        message: message || "That simulation has already ended. Return to the room lobby to start another one.",
+        tone: "info",
+        afterClose: () => navigate("/"),
+      });
+    };
 
     socket.on("room-exists",          handleRoomExists);
     socket.on("join-success",         handleJoinSuccess);
@@ -62,7 +109,7 @@ export const EnterDetails = ({ socket, name, setName, room, setRoom, creating })
       socket.off("full-error",           handleFull);
       socket.off("game-ended-error",     handleGameEnded);
     };
-  }, [socket, room, name, navigate, setRoom, setName]);
+  }, [socket, room, name, navigate, setRoom, setName, showNotice]);
 
   const fieldSx = {
     "& .MuiInput-root": {
@@ -92,6 +139,7 @@ export const EnterDetails = ({ socket, name, setName, room, setRoom, creating })
     <Box
       display="flex" flexDirection="column" alignItems="center"
       justifyContent="center" minHeight="100vh" px={2}
+      className="enter-details-page themed-screen"
       sx={{
         background: "var(--backdrop-background, var(--bg))",
         backgroundImage: "var(--backdrop-image)",
@@ -129,6 +177,7 @@ export const EnterDetails = ({ socket, name, setName, room, setRoom, creating })
         component="form"
         onSubmit={connectSocket}
         maxWidth="380px" width="100%"
+        className="auth-panel themed-panel"
         sx={{
           background: "var(--surface)",
           border: "1px solid rgba(0,255,136,0.25)",
@@ -205,6 +254,13 @@ export const EnterDetails = ({ socket, name, setName, room, setRoom, creating })
           </Stack>
         </Stack>
       </Box>
+      <AlertDialog
+        open={Boolean(notice)}
+        title={notice?.title}
+        message={notice?.message}
+        tone={notice?.tone}
+        onClose={closeNotice}
+      />
     </Box>
   );
 };

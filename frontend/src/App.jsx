@@ -19,15 +19,18 @@ const LEGACY_BACKDROP_STORAGE_KEY = "zeroDayBackdrop";
 const VALID_THEMES = new Set(["default", "futuristic", "simple"]);
 const VALID_BACKGROUNDS = new Set(["default", "grand", "pencil"]);
 
-const backgroundModules = import.meta.glob("/src/assets/background/*.{png,jpg,jpeg,webp,avif}", {
+const backgroundModules = import.meta.glob("/src/assets/background/**/*.{png,jpg,jpeg,webp,avif}", {
   eager: true,
   import: "default",
 });
 
-const backgroundAssets = Object.entries(backgroundModules).map(([path, src]) => ({
-  key: path.split("/").pop().replace(/\.[^/.]+$/, "").toLowerCase(),
-  src,
-}));
+const backgroundAssets = Object.entries(backgroundModules).map(([path, src]) => {
+  const parts = path.split("/");
+  const fileKey = parts.at(-1).replace(/\.[^/.]+$/, "").toLowerCase();
+  const folderKey = parts.at(-2)?.toLowerCase();
+  const key = VALID_BACKGROUNDS.has(fileKey) ? fileKey : folderKey;
+  return { key, src };
+}).filter((asset) => VALID_BACKGROUNDS.has(asset.key));
 
 function backgroundAssetFor(background) {
   return backgroundAssets.find((asset) => asset.key === background)?.src || null;

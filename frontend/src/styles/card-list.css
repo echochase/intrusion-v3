@@ -240,7 +240,7 @@
   justify-content: flex-end;
   width: 100%;
   padding: 1.5rem 0.75rem 0.75rem;
-  background: linear-gradient(to top, rgba(2, 4, 8, 0.98) 0%, rgba(2, 4, 8, 0.86) 72%, rgba(2, 4, 8, 0.2) 100%);
+  background: var(--themed-hover-bg);
   opacity: 0;
   transform: translateY(4px);
   transition: opacity 0.2s ease, transform 0.2s ease;

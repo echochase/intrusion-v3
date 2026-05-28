@@ -599,7 +599,7 @@ button:disabled {
   justify-content: flex-end;
   gap: 0.45rem;
   padding: 0.75rem;
-  background: linear-gradient(to top, rgba(2, 4, 8, 0.96), rgba(2, 4, 8, 0.84));
+  background: var(--themed-hover-bg);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.16s ease;
