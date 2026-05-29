@@ -38,14 +38,14 @@ export function GameInfoModal({ open, onClose }) {
           {tab === 'rules' ? (
             <div className="rules-copy">
               <RuleBlock title="Premise">
-                <p>One hidden Hacker is trying to compromise the system while the Security Engineers race to finish the project. The public board is built around five security Lanes: Credentials, Social, Web, Network, and Physical. A Lane is either open or defended.</p>
+                <p>QuantumNova, a small startup chasing its first major investor demonstration, is trying to finish a practical quantum computer and pair it with an AI cyber-defence model. One hidden Hacker is a disgruntled insider trying to ruin the system before that launch becomes unstoppable.</p>
               </RuleBlock>
 
               <RuleBlock title="Players and Roles">
                 <RulesList>
                   <p><strong>4 to 5 players</strong> are required. One player is secretly assigned as the Hacker. Everyone else is a Security Engineer.</p>
-                  <p><strong>Security Engineers</strong> win by completing the project or correctly voting out the Hacker. Engineers always draw from the Security deck.</p>
-                  <p><strong>The Hacker</strong> wins by reducing System Integrity to zero. At the start of each turn after the first, the Hacker secretly draws 2 cards in any combination from the Security and Hacker decks. The Hacker may submit up to 2 cards per turn, but only 1 Hacker card and 1 Security card.</p>
+                  <p><strong>Security Engineers</strong> win by completing the project or correctly voting out the Hacker. Completing tasks means QuantumNova's quantum AI defence is ready to deploy, closing the Hacker's window of opportunity. Engineers always draw from the Security deck.</p>
+                  <p><strong>The Hacker</strong> wins by reducing System Integrity to zero. They are trusted enough to blend in, but not cleared for the sensitive systems they want to destroy. At the start of each turn after the first, the Hacker secretly draws 2 cards in any combination from the Security and Hacker decks.</p>
                 </RulesList>
               </RuleBlock>
 
@@ -61,13 +61,15 @@ export function GameInfoModal({ open, onClose }) {
                 <RulesList>
                   <p>There are five Lanes: <strong>Credentials</strong>, <strong>Social</strong>, <strong>Web</strong>, <strong>Network</strong>, and <strong>Physical</strong>.</p>
                   <p>Only three Lanes can be defended at once. Defences are face-up and persist until replaced or sabotaged. They do not deplete when they block an attack.</p>
-                  <p>Tasks also belong to Lanes. A task can only be completed when its matching Lane is defended. Each completed task grants +1 Project Progress.</p>
+                  <p>Tasks list the specific Lane or Lanes that must be defended before they can be completed. Some tasks need one Lane, while larger tasks can require multiple defended Lanes at the same time.</p>
+                  <p>Task rewards are not always the same. Smaller tasks usually grant 1 Project Progress, while larger multi-Lane tasks can grant more progress when the team coordinates the right defences.</p>
                 </RulesList>
               </RuleBlock>
 
               <RuleBlock title="Attacks, Evidence, and Logs">
                 <RulesList>
-                  <p>Attacks target Lanes. If the Lane is open, most attacks remove 1 Integrity. DDoS instead limits processing power while it is ongoing, leaving later cards stuck until an Anti-DDoS countermeasure is deployed. Zero-Day is a rare late-game attack that cannot be blocked.</p>
+                  <p>Attacks target Lanes. If the Lane is open, most attacks remove 1 Integrity, but DDoS works differently: it floods the Network Lane and reduces how many queued requests the system can process each turn instead of directly damaging Integrity.</p>
+                  <p>While DDoS is ongoing, the Network Lane is under attack and fewer submitted cards can resolve, so useful work may be delayed until Anti-DDoS Defence brings capacity back online. Zero-Day is a rare late-game attack that cannot be blocked by Lane defences.</p>
                   <p>When a defence blocks an attack, the team gains 1 Evidence. Check Server Log costs 1 Evidence and privately checks whether another player has played a hostile card this cycle. At 5 Evidence, the Hacker's identity is revealed publicly.</p>
                   <p>Rapid Incident Response blocks one attack during the current turn only. It is discarded after use and never lingers into later turns.</p>
                 </RulesList>
@@ -83,20 +85,28 @@ export function GameInfoModal({ open, onClose }) {
             </div>
           ) : (
             <div className="rules-copy field-notes-copy">
+              <RuleBlock title="QuantumNova">
+                <p>QuantumNova is a small company with a huge claim: practical, affordable quantum computing. Their development team is mostly fresh graduates, and because funding is thin, those same people are also carrying the security burden.</p>
+                <p>Their investor pitch is bold: connect the quantum computer to an in-house AI and use that speed to anticipate cyberattacks before they fully form. If the team completes enough project work, that defence platform becomes deployable and the Hacker's chance is gone.</p>
+              </RuleBlock>
+
+              <RuleBlock title="The Insider">
+                <p>The Hacker is not an outside supervillain. They are a disgruntled employee with enough social access to be trusted, enough technical knowledge to cause harm, and not enough clearance to reach the core system directly.</p>
+                <p>That is why the attack is messy: stolen credentials, poisoned logs, sabotage, physical access, social pressure, and traffic overload all become ways to damage QuantumNova before the launch.</p>
+              </RuleBlock>
+
               <RuleBlock title="Why Tasks Matter">
-                <p>QuantumNova is trying to finish a practical quantum computer and connect it to an AI-powered defence system. Once that work is finished, the insider has missed their best chance. Every completed task is a step toward that safer future.</p>
+                <p>Tasks are the last pieces of work needed to make the quantum AI defence ready. Some are small operational steps; others join multiple parts of the company together and are worth more progress.</p>
+                <p>Each task needs certain Lanes defended before it can be completed. Defending the wrong Lane may look responsible, but it will not finish the work QuantumNova actually needs.</p>
               </RuleBlock>
 
-              <RuleBlock title="Why Lanes Are Visible">
-                <p>Security is not just a pile of hidden shields. Teams need to understand which areas are protected and which areas are exposed. The visible Lane board turns that idea into a readable game state: the Hacker sees where the openings are, but the engineers see those openings too.</p>
+              <RuleBlock title="DDoS and Zero-Day Pressure">
+                <p>A DDoS attack does not directly break the system's integrity. It floods the Network Lane with traffic, reducing processing capacity so fewer queued requests, defences, investigations, and tasks can resolve until the team mitigates it.</p>
+                <p>The Zero-Day Attack represents a vulnerability the defenders have not seen before. It is rare, late-game, and unblockable by normal Lane defences.</p>
               </RuleBlock>
 
-              <RuleBlock title="Why Defences Persist">
-                <p>Two-factor authentication, input sanitisation, employee awareness, traffic filtering, and physical security do not vanish just because they stop one incident. They stay in place until the team replaces them or an insider disables them.</p>
-              </RuleBlock>
-
-              <RuleBlock title="The Zero-Day Attack">
-                <p>The Zero-Day Attack represents a flaw nobody planned around. It is rare, late-game, and unblockable because it reminds players that no system is perfect. Security is a constant race between defenders improving their posture and attackers finding new gaps.</p>
+              <RuleBlock title="The One Vote">
+                <p>From cycle 3 onward, the team gets one formal accusation vote. If they identify the Hacker, QuantumNova survives the insider threat. If they are wrong, the vote is spent and an innocent player is removed.</p>
               </RuleBlock>
             </div>
           )}

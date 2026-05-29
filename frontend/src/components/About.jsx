@@ -22,6 +22,25 @@ export const About = () => {
         the team should push project work, and who might be using the chaos as cover.
       </p>
 
+      <h2>Lore</h2>
+      <p>
+        The game is set inside <strong>QuantumNova</strong>, a small startup with limited funding and an
+        oversized ambition: becoming the first company to deliver affordable, practical quantum computing.
+        Its developers are mostly fresh graduates, and because the company is stretched thin, the same team
+        also doubles as its security staff.
+      </p>
+      <p>
+        QuantumNova plans to impress investors by connecting its quantum computer to an AI cyber-defence
+        model. Once deployed, that system is meant to anticipate incoming attacks and prepare defences before
+        those attacks can properly land. Completing task cards represents the final project work needed to
+        make that system deployable.
+      </p>
+      <p>
+        One player is a disgruntled employee. They are not in the core technical team, but they know enough
+        about the company, the people, and the systems to cause damage. They can earn trust, blend in, and
+        exploit openings, but they do not have direct clearance to the most sensitive parts of the project.
+      </p>
+
       <h2>Core Idea</h2>
       <p>
         One player is secretly the <strong>Hacker</strong>. Everyone else is a <strong>Security Engineer</strong>.
@@ -38,17 +57,22 @@ export const About = () => {
       <ul className="stages-list">
         <li>Security Engineers draw from the Security deck and choose one card to submit each turn.</li>
         <li>The Hacker secretly draws two cards from any mix of the Security and Hacker decks.</li>
-        <li>Security Engineers submit one card or pass. The Hacker may submit up to two cards, with at most one Hacker card and one Security card. The System resolves the queue and produces an incident report.</li>
+        <li>Security Engineers submit one card or pass. The Hacker may submit up to two cards, with at most one Hacker card and one Security card.</li>
+        <li>The System resolves the queue and produces an incident report.</li>
         <li>Defences are face-up, persistent, and limited to three active Lanes at a time.</li>
-        <li>Tasks can only be completed when their matching Lane is defended. Each completed task grants +1 Project Progress, so the team has to build protection before rushing the project.</li>
+        <li>Tasks can only be completed when their required Lane or Lanes are defended. Some tasks need one Lane, others need multiple Lanes, and larger tasks can grant more than 1 Project Progress.</li>
       </ul>
 
       <h2>How the Game Teaches Cybersecurity</h2>
       <p>
         Attacks and defences are grouped by security concept. Phishing attacks the Social Lane and is
         stopped by Employee Awareness. XSS attacks the Web Lane and is stopped by Input Sanitisation.
-        Credential attacks are stopped by Two-Factor Authentication. DDoS pressures the Network Lane
-        by limiting processing power until an Anti-DDoS countermeasure is deployed, while Physical Data Theft targets physical access.
+        Credential attacks are stopped by Two-Factor Authentication. Physical Data Theft targets physical access.
+      </p>
+      <p>
+        DDoS works differently from direct integrity attacks. It floods the Network Lane with requests, reducing
+        how many queued actions the system can process each turn until an Anti-DDoS countermeasure is deployed.
+        This makes DDoS feel less like one clean hit and more like the system being choked at the worst possible time.
       </p>
       <p>
         When something happens, the incident report explains the cause and effect in plain language. If an
@@ -70,20 +94,13 @@ export const About = () => {
       <h2>Design Philosophy</h2>
       <p>
         The current version focuses on clarity. It removes bookkeeping-heavy systems and keeps the most
-        important decisions: defend Lanes, complete project work only when it is safe, watch for suspicious behaviour, and time
+        important decisions: defend the specific Lanes needed for the current task, choose whether to chase smaller safe progress or larger multi-Lane progress, watch for suspicious behaviour, and time
         attacks carefully. The result is still recognisably a cybersecurity game, but it should be easier to
         learn, teach, and actually finish.
       </p>
       <p>
         The project uses AI-generated art decoratively for card visuals. The rules, implementation, and
         game design remain the core project work.
-      </p>
-
-      <h2>Lore</h2>
-      <p>
-        In the world of the game, QuantumNova is a small startup racing to finish its first practical quantum
-        computer and connect it to an AI-backed security system. The insider has to act before that future
-        security posture comes online.
       </p>
 
       <button className="return-to-menu" onClick={() => navigate("/")}>← Back to Base</button>

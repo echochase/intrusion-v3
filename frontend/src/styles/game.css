@@ -2600,3 +2600,173 @@ button.defence-slot.text-only {
     letter-spacing: 0.05em;
   }
 }
+
+/* Intro briefing shown once at game start */
+.intro-briefing-shell {
+  min-height: 100vh;
+  width: 100vw;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at top, rgba(0, 255, 136, 0.16), transparent 34%),
+    rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(6px);
+}
+
+.intro-briefing-panel {
+  width: min(640px, 94vw);
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+  padding: 2rem;
+  background:
+    linear-gradient(135deg, rgba(0, 255, 136, 0.08), transparent 35%),
+    rgba(3, 8, 12, 0.94);
+  border: 1px solid rgba(0, 255, 136, 0.34);
+  border-radius: 8px;
+  box-shadow:
+    0 0 60px rgba(0, 255, 136, 0.18),
+    inset 0 0 80px rgba(0, 0, 0, 0.35);
+}
+
+.intro-briefing-panel.hacker-identity {
+  background:
+    linear-gradient(135deg, rgba(255, 51, 85, 0.12), transparent 38%),
+    rgba(8, 4, 8, 0.96);
+  border-color: rgba(255, 51, 85, 0.42);
+  box-shadow:
+    0 0 70px rgba(255, 51, 85, 0.18),
+    inset 0 0 80px rgba(0, 0, 0, 0.36);
+}
+
+.intro-briefing-header,
+.intro-briefing-actions,
+.intro-briefing-dots {
+  display: flex;
+  align-items: center;
+}
+
+.intro-briefing-header {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.intro-briefing-header strong {
+  color: var(--green);
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.12em;
+}
+
+.intro-briefing-copy {
+  flex: 1;
+}
+
+.intro-briefing-copy h1 {
+  margin: 0 0 1rem;
+  color: var(--text);
+  font-size: clamp(2rem, 5vw, 3.6rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 0 24px var(--green-glow);
+}
+
+.intro-briefing-panel.hacker-identity .intro-briefing-copy h1 {
+  color: var(--red);
+  text-shadow: 0 0 24px rgba(255, 51, 85, 0.34);
+}
+
+.intro-briefing-copy p {
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.75;
+  margin: 0 0 0.95rem;
+}
+
+.intro-briefing-dots {
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.intro-briefing-dots span {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.intro-briefing-dots span.active {
+  background: var(--green);
+  border-color: var(--green);
+  box-shadow: 0 0 18px var(--green-glow);
+}
+
+.intro-briefing-actions {
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.intro-briefing-actions button {
+  min-width: 8rem;
+}
+
+@media (max-width: 640px) {
+  .intro-briefing-panel {
+    min-height: auto;
+    padding: 1.35rem;
+  }
+
+  .intro-briefing-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .intro-briefing-actions button {
+    width: 100%;
+  }
+}
+
+/* Intro briefing refinements */
+.intro-briefing-copy h1 {
+  font-size: clamp(1.45rem, 4vw, 2.65rem);
+}
+
+.intro-briefing-actions {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.intro-briefing-nav-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.intro-skip-button {
+  min-width: 7.5rem;
+  color: var(--text-muted);
+  border-color: var(--border);
+  background: transparent;
+}
+
+.intro-skip-button:hover {
+  color: var(--amber);
+  border-color: rgba(255, 170, 0, 0.48);
+  background: rgba(255, 170, 0, 0.08);
+  box-shadow: 0 0 12px rgba(255, 170, 0, 0.12);
+}
+
+@media (max-width: 640px) {
+  .intro-briefing-actions,
+  .intro-briefing-nav-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .intro-briefing-actions button,
+  .intro-briefing-nav-actions button {
+    width: 100%;
+  }
+}

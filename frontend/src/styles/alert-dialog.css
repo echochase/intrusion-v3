@@ -142,3 +142,70 @@
   backdrop-filter: blur(16px) saturate(1.15);
   -webkit-backdrop-filter: blur(16px) saturate(1.15);
 }
+
+/* Keep short system alerts contained without creating stray viewport scrollbars. */
+.cyber-alert-dialog .MuiDialog-container {
+  align-items: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.cyber-alert-paper {
+  box-sizing: border-box;
+  max-width: min(480px, calc(100vw - 2rem));
+  max-height: min(86vh, 520px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  margin: 0 !important;
+}
+
+.cyber-alert-title {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.cyber-alert-content {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.cyber-alert-message {
+  overflow-wrap: anywhere;
+}
+
+.cyber-alert-actions {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+  .cyber-alert-dialog .MuiDialog-container {
+    padding: 0.75rem;
+  }
+
+  .cyber-alert-paper {
+    width: calc(100vw - 1.5rem);
+    max-width: calc(100vw - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .cyber-alert-title {
+    padding: 1rem 1rem 0.4rem !important;
+    font-size: 0.82rem !important;
+    letter-spacing: 0.075em !important;
+  }
+
+  .cyber-alert-content {
+    padding: 0.55rem 1rem 0 !important;
+  }
+
+  .cyber-alert-actions {
+    padding: 1rem !important;
+  }
+
+  .cyber-alert-actions button {
+    width: 100%;
+  }
+}

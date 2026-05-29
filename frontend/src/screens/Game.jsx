@@ -568,6 +568,91 @@ function formatLogEntry(entry) {
   return `${entry?.type || "card"}: ${name} (${description})`;
 }
 
+
+function IntroBriefingModal({ open, role, onClose, onSkipIntro }) {
+  const [page, setPage] = useState(0);
+  const isHacker = role === 'Hacker';
+
+  useEffect(() => {
+    if (open) setPage(0);
+  }, [open]);
+
+  const pages = [
+    {
+      eyebrow: 'incoming briefing',
+      title: 'QuantumNova is close',
+      body: (
+        <>
+          <p>QuantumNova is a small, underfunded tech firm trying to prove that practical quantum computing is finally within reach. Their team is tiny, inexperienced, and stretched thin, but one successful demonstration could change everything.</p>
+          <p>The company plans to connect its quantum system to an AI cyber-defence model and show investors a platform that can anticipate attacks before they fully emerge. But someone inside the company wants QuantumNova to fail.</p>
+        </>
+      ),
+    },
+    {
+      eyebrow: 'security notice',
+      title: 'One formal accusation',
+      body: (
+        <>
+          <p>After cycle 3, the Security Engineers will have one formal chance to vote out the player they believe is the Hacker.</p>
+          <p>If the vote is correct, QuantumNova survives the insider threat. If it is wrong, the accused player is removed and the vote is spent.</p>
+        </>
+      ),
+    },
+    {
+      eyebrow: 'identity confirmed',
+      title: isHacker ? 'You are the Hacker' : 'You are a Security Engineer',
+      body: isHacker ? (
+        <>
+          <p>You are a disgruntled QuantumNova employee with enough trust to move around the company, but not enough clearance to access what matters directly.</p>
+          <p>Sabotage the launch, damage System Integrity, and make sure QuantumNova never gets to deploy its quantum AI defence.</p>
+        </>
+      ) : (
+        <>
+          <p>You are part of QuantumNova's small development team, doubling as security because there is no one else to do it.</p>
+          <p>Defend the right lanes, complete the project, and identify the insider before they bring the company down.</p>
+        </>
+      ),
+    },
+  ];
+
+  const current = pages[page];
+  const lastPage = page >= pages.length - 1;
+
+  return (
+    <Modal open={open}>
+      <div className="intro-briefing-shell">
+        <div className={`intro-briefing-panel ${isHacker && lastPage ? 'hacker-identity' : 'seceng-identity'}`}>
+          <div className="intro-briefing-header">
+            <span className="header-eyebrow">{current.eyebrow}</span>
+            <strong>{page + 1}/{pages.length}</strong>
+          </div>
+
+          <div className="intro-briefing-copy">
+            <h1>{current.title}</h1>
+            {current.body}
+          </div>
+
+          <div className="intro-briefing-dots" aria-label="Briefing progress">
+            {pages.map((_, index) => (
+              <span key={index} className={index === page ? 'active' : ''} />
+            ))}
+          </div>
+
+          <div className="intro-briefing-actions">
+            <button type="button" className="intro-skip-button" onClick={onSkipIntro}>Skip intro</button>
+            <div className="intro-briefing-nav-actions">
+              {page > 0 && <button type="button" onClick={() => setPage((value) => Math.max(0, value - 1))}>Back</button>}
+              <button type="button" onClick={() => (lastPage ? onClose() : setPage((value) => value + 1))}>
+                {lastPage ? 'Enter Simulation' : 'Next'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function VoteModal({ open, onClose, players, name, onVote }) {
   const activeTargets = players.filter((p) => p.name !== name && !p.isEliminated);
 
@@ -988,7 +1073,7 @@ function GameOverModal({ open, gameState, logs, onLobby, onClose }) {
   );
 }
 
-export const Game = ({ socket, name, room, setRoom }) => {
+export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIntro = () => {} }) => {
   const { roomCode } = useParams();
   const navigate = useNavigate();
 
@@ -1013,17 +1098,53 @@ export const Game = ({ socket, name, room, setRoom }) => {
   const [infoOpen, setInfoOpen] = useState(false);
   const [affordanceWarning, setAffordanceWarning] = useState('');
   const [reconReport, setReconReport] = useState(null);
+  const [introOpen, setIntroOpen] = useState(false);
+
 
   const previousHandIdsRef = useRef(null);
   const drawTimerRef = useRef(null);
   const affordanceTimerRef = useRef(null);
   const delayGameOverRef = useRef(false);
   const pendingGameOverRef = useRef(null);
+  const introSeenRef = useRef(false);
 
   const you = useMemo(
     () => gameState?.players?.find((p) => p.name === name) ?? null,
     [gameState, name]
   );
+
+  useEffect(() => {
+    if (import.meta.env.MODE === 'test') return;
+    if (!gameState || !you || introSeenRef.current) return;
+    if (skipIntro) {
+      introSeenRef.current = true;
+      return;
+    }
+    if (gameState.phase !== 'playing' || Number(gameState.turnNumber || 1) > 1) return;
+
+    const introKey = `intrusion:intro-briefing-seen:${activeRoom}:${name}`;
+    if (window.localStorage.getItem(introKey) === 'true') {
+      introSeenRef.current = true;
+      return;
+    }
+
+    introSeenRef.current = true;
+    setIntroOpen(true);
+  }, [activeRoom, gameState, name, skipIntro, you]);
+
+  const markIntroSeen = () => {
+    window.localStorage.setItem(`intrusion:intro-briefing-seen:${activeRoom}:${name}`, 'true');
+    setIntroOpen(false);
+  };
+
+  const closeIntroBriefing = () => {
+    markIntroSeen();
+  };
+
+  const skipFutureIntroBriefings = () => {
+    setSkipIntro(true);
+    markIntroSeen();
+  };
 
   const hand = useMemo(() => you?.cards ?? [], [you]);
   const task = you?.task ?? null;
@@ -1734,6 +1855,7 @@ export const Game = ({ socket, name, room, setRoom }) => {
 
       <LogModal open={logOpen} onClose={() => setLogOpen(false)} logs={logs} />
       <GameInfoModal open={infoOpen} onClose={() => setInfoOpen(false)} />
+      <IntroBriefingModal open={introOpen} role={you?.role} onClose={closeIntroBriefing} onSkipIntro={skipFutureIntroBriefings} />
       <CardPreviewModal card={previewCard} onClose={() => setPreviewCard(null)} />
       <GameOverModal
         open={isEnded && gameOverOpen}

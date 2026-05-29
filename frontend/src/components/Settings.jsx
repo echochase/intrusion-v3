@@ -65,11 +65,37 @@ function OptionGroup({ title, description, options, value, onChange, ariaLabel }
   );
 }
 
+function ToggleSetting({ title, description, checked, onChange }) {
+  return (
+    <section className="settings-section settings-toggle-section">
+      <div>
+        <h2>{title}</h2>
+        <p>{description}</p>
+      </div>
+
+      <button
+        type="button"
+        className={`settings-toggle ${checked ? "active" : ""}`}
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+      >
+        <span className="settings-toggle-track">
+          <span className="settings-toggle-thumb" />
+        </span>
+        <strong>{checked ? "On" : "Off"}</strong>
+      </button>
+    </section>
+  );
+}
+
 export const Settings = ({
   theme = "default",
   setTheme = () => {},
   background = "default",
   setBackground = () => {},
+  skipIntro = false,
+  setSkipIntro = () => {},
 }) => {
   const navigate = useNavigate();
 
@@ -94,6 +120,13 @@ export const Settings = ({
           value={background}
           onChange={setBackground}
           ariaLabel="background"
+        />
+
+        <ToggleSetting
+          title="Skip Intro"
+          description="Skip the opening lore and identity briefing when a new simulation starts."
+          checked={skipIntro}
+          onChange={setSkipIntro}
         />
 
         <button className="back-button" onClick={() => navigate("/")}> 

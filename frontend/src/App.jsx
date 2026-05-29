@@ -15,6 +15,7 @@ import React from "react";
 
 const THEME_STORAGE_KEY = "zeroDayTheme";
 const BACKGROUND_STORAGE_KEY = "zeroDayBackground";
+const SKIP_INTRO_STORAGE_KEY = "zeroDaySkipIntro";
 const LEGACY_BACKDROP_STORAGE_KEY = "zeroDayBackdrop";
 const VALID_THEMES = new Set(["default", "futuristic", "simple"]);
 const VALID_BACKGROUNDS = new Set(["default", "grand", "pencil"]);
@@ -48,12 +49,17 @@ function savedBackground() {
   return VALID_BACKGROUNDS.has(saved) ? saved : "default";
 }
 
+function savedSkipIntro() {
+  return localStorage.getItem(SKIP_INTRO_STORAGE_KEY) === "true";
+}
+
 export default function App() {
   const [socket, setSocket] = useState(null);
   const [name, setName] = useState(localStorage.getItem("name") || "");
   const [room, setRoom] = useState(localStorage.getItem("room") || "");
   const [theme, setTheme] = useState(savedTheme);
   const [background, setBackground] = useState(savedBackground);
+  const [skipIntro, setSkipIntro] = useState(savedSkipIntro);
 
   const backend = useMemo(() => import.meta.env.VITE_BACKEND_URL, []);
 
@@ -71,6 +77,10 @@ export default function App() {
     document.documentElement.dataset.theme = safeTheme;
     delete document.documentElement.dataset.backdrop;
   }, [theme]);
+  useEffect(() => {
+    localStorage.setItem(SKIP_INTRO_STORAGE_KEY, skipIntro ? "true" : "false");
+  }, [skipIntro]);
+
   useEffect(() => {
     const safeBackground = VALID_BACKGROUNDS.has(background) ? background : "default";
     const asset = backgroundAssetFor(safeBackground);
@@ -93,8 +103,8 @@ export default function App() {
         <Route path="/create"         element={<EnterDetails {...sharedProps} creating={true} />} />
         <Route path="/join"           element={<EnterDetails {...sharedProps} creating={false} />} />
         <Route path="/lobby/:roomCode" element={<Lobby {...sharedProps} />} />
-        <Route path="/play/:roomCode"  element={<Game {...sharedProps} />} />
-        <Route path="/settings"       element={<Settings theme={theme} setTheme={setTheme} background={background} setBackground={setBackground} />} />
+        <Route path="/play/:roomCode"  element={<Game {...sharedProps} skipIntro={skipIntro} setSkipIntro={setSkipIntro} />} />
+        <Route path="/settings"       element={<Settings theme={theme} setTheme={setTheme} background={background} setBackground={setBackground} skipIntro={skipIntro} setSkipIntro={setSkipIntro} />} />
         <Route path="/about"          element={<About />} />
         <Route path="/card-list"      element={<CardList />} />
         <Route path="/update-notes"   element={<UpdateNotes />} />
