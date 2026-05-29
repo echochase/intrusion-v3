@@ -1,10 +1,11 @@
 const MAX_HAND_SIZE = 5;
 
 class Player {
-  constructor(name, socketId = null, sessionToken = null) {
+  constructor(name, socketId = null, sessionToken = null, isBot = false) {
     this.name = name;
     this.socketId = socketId;
     this.sessionToken = sessionToken;
+    this.isBot = Boolean(isBot);
     this.cards = [];
     this.task = null;
     this.hasPlayedCards = false;
@@ -71,6 +72,7 @@ class Player {
       forcedDiscardCount: this.forcedDiscardCount,
       awaitingDrawChoice: this.awaitingDrawChoice,
       replacedTaskThisTurn: this.replacedTaskThisTurn,
+      isBot: this.isBot,
     };
   }
 
