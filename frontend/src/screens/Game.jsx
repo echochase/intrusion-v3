@@ -654,18 +654,38 @@ function IntroBriefingModal({ open, role, onClose, onSkipIntro }) {
 }
 
 function VoteModal({ open, onClose, players, name, onVote }) {
-  const activeTargets = players.filter((p) => p.name !== name && !p.isEliminated);
+  const [pendingTarget, setPendingTarget] = useState(null);
+  const activeTargets = players.filter((p) => p.name !== name && !p.isEliminated && !p.isSpectator);
+
+  useEffect(() => {
+    if (!open) setPendingTarget(null);
+  }, [open]);
+
+  const chooseTarget = (targetName) => {
+    if (pendingTarget === targetName) {
+      onVote(targetName);
+      setPendingTarget(null);
+      onClose?.();
+      return;
+    }
+    setPendingTarget(targetName);
+  };
 
   return (
     <Modal open={open} onClose={onClose}>
       <div className="modal center vote-modal">
         <h2>Accuse Player</h2>
-        <p>Select the player you believe is the hacker.</p>
+        <p>Select once to mark your choice. Select the same player again to confirm.</p>
 
         <div className="vote-grid">
           {activeTargets.map((player) => (
-            <button key={player.name} type="button" onClick={() => onVote(player.name)}>
-              {player.name}
+            <button
+              key={player.name}
+              type="button"
+              className={pendingTarget === player.name ? 'confirming' : ''}
+              onClick={() => chooseTarget(player.name)}
+            >
+              {pendingTarget === player.name ? `Sure? ${player.name}` : player.name}
             </button>
           ))}
         </div>
@@ -1073,6 +1093,49 @@ function GameOverModal({ open, gameState, logs, onLobby, onClose }) {
   );
 }
 
+function TurnTimer({ gameState }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const phase = gameState?.turnPhase || 'play';
+  const endsAt = gameState?.turnPhaseEndsAt ? Date.parse(gameState.turnPhaseEndsAt) : null;
+  const duration = Number(gameState?.turnPhaseDurationMs || 0);
+  const remainingMs = endsAt ? Math.max(0, endsAt - now) : 0;
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
+  const progress = duration > 0 ? Math.max(0, Math.min(1, remainingMs / duration)) : 0;
+  const degrees = Math.round(progress * 360);
+
+  const labels = {
+    discussion: 'Discussion',
+    play: 'Play',
+    discard: 'Discard',
+  };
+
+  return (
+    <div className={`turn-timer turn-timer-${phase}`}>
+      <div
+        className="turn-timer-ring"
+        style={{ '--timer-degrees': `${degrees}deg` }}
+        aria-label={`${labels[phase] || 'Turn'} timer: ${remainingSeconds} seconds remaining`}
+      >
+        <span>{remainingSeconds}</span>
+      </div>
+      <div className="turn-timer-copy">
+        <strong>{labels[phase] || 'Turn'} phase</strong>
+        <span>{phase === 'discussion'
+          ? 'Coordinate privately. The timer ends early when everyone is ready.'
+          : phase === 'discard'
+            ? 'Discard down to the hand limit.'
+            : 'Choose your card. Idle players will pass.'}</span>
+      </div>
+    </div>
+  );
+}
+
 export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIntro = () => {} }) => {
   const { roomCode } = useParams();
   const navigate = useNavigate();
@@ -1153,14 +1216,19 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
     [hand, task]
   );
 
-  const mustDiscard = Boolean(you?.mustDiscard);
+  const turnPhase = gameState?.turnPhase || (you?.mustDiscard ? "discard" : "play");
+  const isDiscussionPhase = turnPhase === "discussion";
+  const isPlayPhase = turnPhase === "play";
+  const isDiscardPhase = turnPhase === "discard";
+  const mustDiscard = Boolean(you?.mustDiscard) && isDiscardPhase;
   const discardCount = you?.discardCount ?? 0;
   const isEngineer = you?.role === "SecEng" || you?.role === "SecurityEngineer";
   const isSpectator = Boolean(you?.isEliminated) || you?.role === "Spectator";
   const isEnded = gameState?.phase === "ended" || Boolean(gameState?.winner);
   const hasSubmitted = Boolean(you?.submittedThisTurn);
   const submittedCards = you?.submittedCardsThisTurn ?? [];
-  const canAct = Boolean(you) && !isEnded && !isSpectator && gameState?.phase === "playing" && !hasSubmitted && !you?.awaitingDrawChoice;
+  const canAct = Boolean(you) && !isEnded && !isSpectator && gameState?.phase === "playing" && isPlayPhase && !hasSubmitted && !you?.awaitingDrawChoice;
+  const canReadyDiscussion = Boolean(you) && !isEnded && !isSpectator && gameState?.phase === "playing" && isDiscussionPhase && !gameState?.yourDiscussionReady;
 
   useEffect(() => {
     if (isEnded) setGameOverOpen(true);
@@ -1403,6 +1471,10 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
     socket.emit("choose-hacker-draw", { room: activeRoom, playerName: name, security, hacker });
   };
 
+  const markTurnReady = () => {
+    socket.emit("turn-ready", { room: activeRoom, playerName: name });
+  };
+
   const leaveGame = () => {
     socket.emit("leave-room", activeRoom, name);
     navigate("/");
@@ -1608,6 +1680,16 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
 
       {isEnded && <FinalResultsPanel gameState={gameState} logs={logs} />}
 
+      {canReadyDiscussion && (
+        <div className="discussion-ready-panel">
+          <span>Use this time to discuss. Your ready state is private.</span>
+          <button type="button" onClick={markTurnReady}>I'm Ready</button>
+        </div>
+      )}
+      {isDiscussionPhase && gameState?.yourDiscussionReady && (
+        <div className="discussion-ready-panel ready">Waiting for the discussion timer or all players to ready up.</div>
+      )}
+
       <section className="game-dashboard">
         <div className="game-panel identity-panel">
           <div className="panel-heading">
@@ -1622,6 +1704,12 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
             <div className="skill-cell skill-prog"><span>HAND</span><strong>{hand.length}/5</strong></div>
 
           </div>
+
+          {!isEnded && gameState?.phase === "playing" && (
+            <div className="identity-timer-slot">
+              <TurnTimer gameState={gameState} />
+            </div>
+          )}
         </div>
 
         <div className="game-panel system-panel">
@@ -1630,7 +1718,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
               // system
               {ddosOngoing && <em className="ddos-status-chip">ONGOING DDoS</em>}
             </span>
-            <strong>{gameState.phase}</strong>
+            <strong>{gameState.phase} / {turnPhase}</strong>
           </div>
 
           <div className="system-grid">
@@ -1712,8 +1800,10 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
                   {hasSubmitted
                     ? "Queue submitted."
                     : mustDiscard
-                      ? "Choose a card from your hand before continuing."
-                      : "Drop card here — or pass."}
+                      ? "Choose cards to discard before continuing."
+                      : isDiscussionPhase
+                        ? "Discussion in progress."
+                        : "Drop card here — or pass."}
                 </div>
               ) : (
                 <div className="staged-cards">
@@ -1844,7 +1934,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
                         : player.hackerRevealed || player.role === 'Hacker'
                           ? 'Hacker revealed'
                           : "active"}
-                    {player.submittedThisTurn && !player.isEliminated && !player.isSpectator ? " // locked" : ""}
+
                   </strong>
                 </div>
               </div>
@@ -1886,6 +1976,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
         open={voteOpen}
         onClose={() => setVoteOpen(false)}
         players={gameState.players}
+        name={name}
         onVote={castVote}
       />
     </main>

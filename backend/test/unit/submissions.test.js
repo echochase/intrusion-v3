@@ -39,19 +39,8 @@ test('the Hacker may submit one Hacker card plus one Security card, but not two 
   assert.equal(twoHackerCards.ok, false);
   assert.match(twoHackerCards.error, /at most 1 Hacker card and 1 Security card/i);
 
-  game.turnNumber = 2;
   const validMix = game.submitCards(hacker.name, [attack.id, securityCard.id]);
   assert.equal(validMix.ok, true);
-});
-
-test('the Hacker cannot submit attack cards on the first turn', () => {
-  const game = createStartedGame();
-  const hacker = getHacker(game);
-  const [attack] = putInHand(hacker, [new attacks.Phishing()]);
-
-  const blocked = game.submitCards(hacker.name, [attack.id]);
-  assert.equal(blocked.ok, false);
-  assert.match(blocked.error, /first cycle/i);
 });
 
 test('Security Engineers cannot submit Hacker-only cards', () => {
@@ -103,13 +92,12 @@ test('a player who must discard cannot submit until the discard requirement is c
   ]);
   engineer.markDiscardIfNeeded();
 
-  const blocked = game.submitCards(engineer.name, []);
-  assert.equal(blocked.ok, false);
-  assert.match(blocked.error, /Discard before submitting/i);
+  const allowedDuringPlay = game.submitCards(engineer.name, []);
+  assert.equal(allowedDuringPlay.ok, true);
 
+  game.startDiscardPhase();
   const discard = game.discardCards(engineer.name, [engineer.cards[0].id]);
   assert.equal(discard.ok, true);
-  assert.equal(game.submitCards(engineer.name, []).ok, true);
 });
 
 test('the Hacker must choose their start-of-turn draw before submitting', () => {

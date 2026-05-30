@@ -7,6 +7,12 @@
 const crypto = require('crypto');
 const { rooms, onlineState } = require('./rooms');
 const Game = require('./models/Game');
+const BotRuntime = require('./bots/botRuntime');
+const { createBotLobbyPlayer } = require('./bots/botLogic');
+
+const DISCUSSION_DURATION_MS = Game.DISCUSSION_DURATION_MS || 120000;
+const PLAY_DURATION_MS = Game.PLAY_DURATION_MS || 30000;
+const DISCARD_DURATION_MS = Game.DISCARD_DURATION_MS || 10000;
 
 // ── Lobby helpers ────────────────────────────────────────────────────────────
 
@@ -29,7 +35,7 @@ function tokenMatches(entry, token) {
 }
 
 function slimPlayer(p) {
-  return { name: p.name, ready: p.ready, connected: p.connected !== false };
+  return { name: p.name, ready: p.ready, connected: p.connected !== false, isBot: Boolean(p.isBot) };
 }
 
 function slimSpectator(p) {
@@ -131,6 +137,9 @@ module.exports = function(io) {
         leader: playerName,
         started: false,
         game: null,
+        turnTimer: null,
+        turnTimerKind: null,
+        botTimers: new Set(),
       };
       socket.join(room);
       socket.emit('room-created', room, { participantToken: creator.sessionToken });
@@ -289,6 +298,15 @@ module.exports = function(io) {
       emitLobbyUpdate(io, room);
     });
 
+    socket.on('add-bot', (room, name) => {
+      const roomData = rooms[room];
+      if (!roomData || name !== roomData.leader || roomData.started) return socket.emit('non-existent-error');
+      if ((roomData.players || []).length >= 5) return socket.emit('game-error', 'Room is full. Remove a player before adding a bot.');
+      const bot = createBotLobbyPlayer(roomData.players || []);
+      roomData.players.push(bot);
+      emitLobbyUpdate(io, room);
+    });
+
     socket.on('player-ready', (room, name) => {
       const roomData = rooms[room];
       if (!roomData || roomData.started) return;
@@ -418,7 +436,9 @@ module.exports = function(io) {
         return socket.emit('game-error', err.message);
       }
       roomData.game.start();
-      roomData.game.dealStartOfTurn();
+      roomData.game.dealStartOfTurn({ startDiscussion: true });
+      BotRuntime.readyDiscussionBots(roomData.game);
+      _scheduleDiscussionTimer(io, room, roomData);
 
       _emitPrivateStates(io, room, roomData);
       io.to(room).emit('start-confirm');
@@ -426,6 +446,19 @@ module.exports = function(io) {
     });
 
     // ── Gameplay ───────────────────────────────────────────────────────────
+
+    socket.on('turn-ready', ({ room, playerName } = {}) => {
+      const roomData = rooms[room];
+      const game = _game(socket, room);
+      if (!game) return;
+
+      const result = game.markDiscussionReady(playerName || _playerNameBySocket(room, socket.id));
+      if (!result.ok) return socket.emit('game-error', result.error);
+
+      socket.emit('turn-ready-ack', { allReady: result.allReady });
+      _emitPrivateStates(io, room, roomData);
+      if (result.allReady) _startPlayTimer(io, room, roomData);
+    });
 
 
     socket.on('choose-hacker-draw', ({ room, playerName, security = 0, hacker = 0 }) => {
@@ -457,7 +490,7 @@ module.exports = function(io) {
       });
 
       _emitPrivateStates(io, room, roomData);
-      _maybeResolveTurn(io, room, roomData);
+      _maybeAdvanceAfterSubmissions(io, room, roomData);
     });
 
     socket.on('discard-cards', ({ room, playerName, cardNames, cardIds }) => {
@@ -473,7 +506,7 @@ module.exports = function(io) {
         discardCount: result.discardCount,
       });
       _emitPrivateStates(io, room, roomData);
-      _maybeResolveTurn(io, room, roomData);
+      _maybeResolveAfterDiscards(io, room, roomData);
     });
 
     socket.on('replace-task', ({ room, playerName }) => {
@@ -536,8 +569,10 @@ module.exports = function(io) {
 
       if (result.outcome === 'started') {
         io.to(room).emit('vote-started');
+        _scheduleBotFormalVotes(io, room, roomData);
       } else {
         io.to(room).emit('vote-proposed', { callerName: caller });
+        _scheduleBotVoteProposalResponses(io, room, roomData);
       }
       _emitPrivateStates(io, room, roomData);
     });
@@ -553,6 +588,7 @@ module.exports = function(io) {
 
       if (result.outcome === 'started') {
         io.to(room).emit('vote-started');
+        _scheduleBotFormalVotes(io, room, roomData);
       } else if (result.outcome === 'deferred') {
         io.to(room).emit('vote-proposal-deferred', { callerName: result.callerName });
       } else {
@@ -656,7 +692,89 @@ function _emitPrivateStates(io, room, roomData) {
   }
 }
 
+function _clearTurnTimer(roomData) {
+  if (roomData?.turnTimer) clearTimeout(roomData.turnTimer);
+  if (roomData) {
+    roomData.turnTimer = null;
+    roomData.turnTimerKind = null;
+  }
+}
+
+function _clearBotTimers(roomData) {
+  BotRuntime.clear(roomData);
+}
+
+function _scheduleDiscussionTimer(io, room, roomData) {
+  _clearTurnTimer(roomData);
+  _clearBotTimers(roomData);
+  BotRuntime.readyDiscussionBots(roomData.game);
+  roomData.turnTimerKind = 'discussion';
+  roomData.turnTimer = setTimeout(() => _startPlayTimer(io, room, roomData), DISCUSSION_DURATION_MS);
+  if (typeof roomData.turnTimer.unref === 'function') roomData.turnTimer.unref();
+}
+
+function _startPlayTimer(io, room, roomData) {
+  const game = roomData?.game;
+  if (!game || game.phase !== 'playing') return;
+  _clearTurnTimer(roomData);
+  _clearBotTimers(roomData);
+  game.autoChooseOutstandingDraws();
+  game.startPlayPhase(PLAY_DURATION_MS);
+  _emitPrivateStates(io, room, roomData);
+  BotRuntime.schedulePlayBots({ io, room, roomData, onAfterBotAction: _afterBotPlayAction });
+
+  roomData.turnTimerKind = 'play';
+  roomData.turnTimer = setTimeout(() => {
+    game.autoPassMissingPlayers();
+    _emitPrivateStates(io, room, roomData);
+    _startDiscardOrResolve(io, room, roomData);
+  }, PLAY_DURATION_MS);
+  if (typeof roomData.turnTimer.unref === 'function') roomData.turnTimer.unref();
+}
+
+function _startDiscardOrResolve(io, room, roomData) {
+  const game = roomData?.game;
+  if (!game || game.phase !== 'playing') return;
+  if (!game.allPlayersSubmitted()) return;
+
+  if (game.hasPendingDiscards()) {
+    _clearTurnTimer(roomData);
+    game.startDiscardPhase(DISCARD_DURATION_MS);
+    _emitPrivateStates(io, room, roomData);
+    BotRuntime.discardBotsNow(game);
+    _emitPrivateStates(io, room, roomData);
+    if (game.canResolveTurn()) {
+      _resolveTurn(io, room, roomData);
+      return;
+    }
+    roomData.turnTimerKind = 'discard';
+    roomData.turnTimer = setTimeout(() => {
+      game.autoDiscardOutstanding();
+      _emitPrivateStates(io, room, roomData);
+      _maybeResolveAfterDiscards(io, room, roomData);
+    }, DISCARD_DURATION_MS);
+    if (typeof roomData.turnTimer.unref === 'function') roomData.turnTimer.unref();
+    return;
+  }
+
+  _resolveTurn(io, room, roomData);
+}
+
+function _maybeAdvanceAfterSubmissions(io, room, roomData) {
+  const game = roomData?.game;
+  if (!game?.allPlayersSubmitted()) return;
+  _startDiscardOrResolve(io, room, roomData);
+}
+
+function _maybeResolveAfterDiscards(io, room, roomData) {
+  const game = roomData?.game;
+  if (!game?.canResolveTurn()) return;
+  _resolveTurn(io, room, roomData);
+}
+
 function _resolveTurn(io, room, roomData) {
+  _clearTurnTimer(roomData);
+  _clearBotTimers(roomData);
   const game = roomData.game;
   const summary = game.resolveTurn();
 
@@ -704,13 +822,68 @@ function _resolveTurn(io, room, roomData) {
     return;
   }
 
-  game.dealStartOfTurn();
+  game.dealStartOfTurn({ startDiscussion: true });
+  _scheduleDiscussionTimer(io, room, roomData);
   _emitPrivateStates(io, room, roomData);
 }
 
 function _maybeResolveTurn(io, room, roomData) {
-  if (!roomData?.game?.canResolveTurn()) return;
-  _resolveTurn(io, room, roomData);
+  _maybeResolveAfterDiscards(io, room, roomData);
+}
+
+
+function _afterBotPlayAction(io, room, roomData) {
+  _emitPrivateStates(io, room, roomData);
+  _maybeAdvanceAfterSubmissions(io, room, roomData);
+}
+
+function _scheduleBotVoteProposalResponses(io, room, roomData) {
+  BotRuntime.scheduleVoteProposalBots({
+    io,
+    room,
+    roomData,
+    onAfterBotResponse: _afterBotVoteProposalResponse,
+  });
+}
+
+function _afterBotVoteProposalResponse(io, room, roomData, result) {
+  if (!result?.ok) return;
+  if (result.outcome === 'started') {
+    io.to(room).emit('vote-started');
+    _scheduleBotFormalVotes(io, room, roomData);
+  } else if (result.outcome === 'deferred') {
+    io.to(room).emit('vote-proposal-deferred', { callerName: result.callerName });
+  } else {
+    io.to(room).emit('vote-proposal-updated', result.proposal || null);
+  }
+  _emitPrivateStates(io, room, roomData);
+}
+
+function _scheduleBotFormalVotes(io, room, roomData) {
+  BotRuntime.scheduleFormalVoteBots({
+    io,
+    room,
+    roomData,
+    onAfterBotVote: _afterBotFormalVote,
+  });
+}
+
+function _afterBotFormalVote(io, room, roomData, result, voterName) {
+  if (!result?.ok) return;
+  if (result.waiting) {
+    io.to(room).emit('vote-cast', { voterName });
+    _emitPrivateStates(io, room, roomData);
+    return;
+  }
+
+  io.to(room).emit('vote-resolved', {
+    outcome: result.outcome,
+    eliminated: result.eliminated ?? null,
+    votingExpired: result.votingExpired ?? false,
+  });
+
+  if (result.win) io.to(room).emit('game-over', result.win);
+  _emitPrivateStates(io, room, roomData);
 }
 
 function _playerNameBySocket(room, socketId) {

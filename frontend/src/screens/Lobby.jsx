@@ -43,6 +43,7 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
 
   const leaveLobby   = () => { socket.emit("leave-room", roomCode, name); navigate("/"); };
   const handleKick   = (n) => socket.emit("kick-player", roomCode, name, n);
+  const addBot       = () => socket.emit("add-bot", roomCode, name);
   const startGame    = () => {
     if (connectedPlayerCount < 4) {
       showNotice({
@@ -159,7 +160,7 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
                   opacity: isConnected ? 1 : 0.52,
                 }}>
                   <Box sx={{ display:"flex", alignItems:"center", gap:1.5, position:"relative" }}>
-                    {player.ready && player.connected !== false && (
+                    {(player.ready || player.isBot) && player.connected !== false && (
                       <CheckCircle sx={{
                         position:"absolute", top:-4, left:-2,
                         color:"#00ff88", backgroundColor:"var(--surface)",
@@ -205,6 +206,11 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
                         {isYou && (
                           <Box sx={{ ...mono, fontSize:"0.6rem", color:"var(--text-muted)", fontStyle:"italic" }}>
                             (you)
+                          </Box>
+                        )}
+                        {player.isBot && (
+                          <Box sx={{ ...mono, fontSize:"0.58rem", color:"#00d4ff", letterSpacing:"0.08em" }}>
+                            [bot]
                           </Box>
                         )}
                         {!isConnected && (
@@ -268,6 +274,15 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
 
           {/* Action buttons */}
           <Stack direction="row" spacing={2} justifyContent="center" mt={4}>
+            {isLeader && !isSpectator && connectedPlayerCount < 5 && (
+              <Button variant="outlined" onClick={addBot} sx={{
+                ...cyberBase, px:3, py:1.1,
+                border:"1px solid rgba(0,212,255,0.5)", color:"#00d4ff", fontWeight:700,
+                "&:hover":{ border:"1px solid #00d4ff", background:"rgba(0,212,255,0.08)", boxShadow:"0 0 14px rgba(0,212,255,0.2)" },
+              }}>
+                Add Bot
+              </Button>
+            )}
             {isLeader && !isSpectator ? (
               <Button variant="outlined" onClick={startGame} sx={{
                 ...cyberBase, px:3, py:1.1,

@@ -2770,3 +2770,96 @@ button.defence-slot.text-only {
     width: 100%;
   }
 }
+
+.turn-timer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(125, 249, 255, 0.22);
+  border-radius: 18px;
+  background: rgba(4, 12, 24, 0.78);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.24);
+}
+
+.turn-timer-ring {
+  --timer-degrees: 360deg;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, rgba(5, 12, 24, 0.96) 57%, transparent 59%),
+    conic-gradient(var(--accent, #7df9ff) var(--timer-degrees), rgba(255, 255, 255, 0.12) 0deg);
+  box-shadow: 0 0 26px rgba(125, 249, 255, 0.2);
+}
+
+.turn-timer-ring span {
+  font-family: var(--mono, monospace);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.turn-timer-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.turn-timer-copy strong {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.turn-timer-copy span {
+  color: var(--muted, rgba(255, 255, 255, 0.72));
+}
+
+.discussion-ready-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(125, 249, 255, 0.18);
+  border-radius: 16px;
+  background: rgba(8, 20, 36, 0.72);
+}
+
+.discussion-ready-panel.ready {
+  justify-content: center;
+  color: var(--muted, rgba(255, 255, 255, 0.72));
+}
+
+@media (max-width: 700px) {
+  .turn-timer,
+  .discussion-ready-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+.identity-timer-slot {
+  margin-top: 1rem;
+}
+
+.identity-timer-slot .turn-timer {
+  margin: 0;
+  padding: 0.7rem;
+  min-height: 0;
+}
+
+.identity-timer-slot .turn-timer-copy span {
+  line-height: 1.35;
+}
+
+.vote-grid button.confirming {
+  border-color: rgba(255, 170, 0, 0.75);
+  color: #ffaa00;
+  background: rgba(255, 170, 0, 0.1);
+  box-shadow: 0 0 18px rgba(255, 170, 0, 0.18);
+}

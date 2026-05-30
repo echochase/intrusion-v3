@@ -9,6 +9,14 @@ const INITIAL_SECURITY_HAND_SIZE = 4;
 const MIN_PLAYERS = 4;
 const MAX_PLAYERS = 5;
 const VOTE_UNLOCK_TURN = 3;
+const TURN_PHASES = Object.freeze({
+  DISCUSSION: 'discussion',
+  PLAY: 'play',
+  DISCARD: 'discard',
+});
+const DISCUSSION_DURATION_MS = 120000;
+const PLAY_DURATION_MS = 30000;
+const DISCARD_DURATION_MS = 10000;
 
 class Game {
   constructor(lobbyPlayers) {
@@ -18,8 +26,8 @@ class Game {
 
     const hackerIndex = Math.floor(Math.random() * lobbyPlayers.length);
     this.players = lobbyPlayers.map((lp, index) => index === hackerIndex
-      ? new Hacker(lp.name, lp.socketId, lp.sessionToken)
-      : new SecurityEngineer(lp.name, lp.socketId, lp.sessionToken));
+      ? new Hacker(lp.name, lp.socketId, lp.sessionToken, lp.isBot)
+      : new SecurityEngineer(lp.name, lp.socketId, lp.sessionToken, lp.isBot));
 
     this.hackerDeck = new HackerDeck();
     this.secEngDeck = new SecEngDeck();
@@ -31,7 +39,13 @@ class Game {
     this.winner = null;
     this.endReason = null;
     this.turnSubmissions = {};
+    this.submissionOrder = 0;
     this.lastTurnSubmissionDebug = [];
+    this.turnPhase = TURN_PHASES.PLAY;
+    this.turnPhaseStartedAt = null;
+    this.turnPhaseEndsAt = null;
+    this.turnPhaseDurationMs = null;
+    this.discussionReady = {};
     this.currentVote = null;
     this.voteProposal = null;
     this.votingExpired = false;
@@ -59,9 +73,15 @@ class Game {
     this.turnNumber = 1;
   }
 
-  dealStartOfTurn() {
+  dealStartOfTurn({ startDiscussion = false } = {}) {
     this.turnSubmissions = {};
+    this.submissionOrder = 0;
     this.lastTurnSubmissionDebug = [];
+    this.turnPhase = TURN_PHASES.PLAY;
+    this.turnPhaseStartedAt = null;
+    this.turnPhaseEndsAt = null;
+    this.turnPhaseDurationMs = null;
+    this.discussionReady = {};
 
     for (const player of this.players) {
       player.hasPlayedCards = false;
@@ -81,6 +101,91 @@ class Game {
         player.receiveCards(this.secEngDeck.drawMany(1));
       }
     }
+
+    if (startDiscussion) this.startDiscussionPhase();
+    else this.startPlayPhase();
+  }
+
+  _setTurnPhase(turnPhase, durationMs = null) {
+    this.turnPhase = turnPhase;
+    this.turnPhaseStartedAt = new Date().toISOString();
+    this.turnPhaseDurationMs = durationMs;
+    this.turnPhaseEndsAt = durationMs ? new Date(Date.now() + durationMs).toISOString() : null;
+  }
+
+  startDiscussionPhase(durationMs = DISCUSSION_DURATION_MS) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Game is not in the playing phase' };
+    this.discussionReady = {};
+    this._setTurnPhase(TURN_PHASES.DISCUSSION, durationMs);
+    return { ok: true, turnPhase: this.turnPhase, turnPhaseEndsAt: this.turnPhaseEndsAt };
+  }
+
+  startPlayPhase(durationMs = PLAY_DURATION_MS) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Game is not in the playing phase' };
+    this._setTurnPhase(TURN_PHASES.PLAY, durationMs);
+    return { ok: true, turnPhase: this.turnPhase, turnPhaseEndsAt: this.turnPhaseEndsAt };
+  }
+
+  startDiscardPhase(durationMs = DISCARD_DURATION_MS) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Game is not in the playing phase' };
+    this._setTurnPhase(TURN_PHASES.DISCARD, durationMs);
+    return { ok: true, turnPhase: this.turnPhase, turnPhaseEndsAt: this.turnPhaseEndsAt };
+  }
+
+  markDiscussionReady(playerName) {
+    if (this.phase !== 'playing') return { ok: false, error: 'Game is not in the playing phase' };
+    if (this.turnPhase !== TURN_PHASES.DISCUSSION) return { ok: false, error: 'Discussion is not active' };
+    const player = this.getPlayer(playerName);
+    if (!player) return { ok: false, error: 'Player not found or has been eliminated' };
+    this.discussionReady[playerName] = true;
+    return { ok: true, allReady: this.allDiscussionReady() };
+  }
+
+  allDiscussionReady() {
+    return this.players.every(player => this.discussionReady[player.name]);
+  }
+
+  allPlayersSubmitted() {
+    return this.players.every(player => this.turnSubmissions[player.name] !== undefined);
+  }
+
+  allDiscardsCleared() {
+    return this.players.every(player => !player.mustDiscard());
+  }
+
+  hasPendingDiscards() {
+    return this.players.some(player => player.mustDiscard());
+  }
+
+  autoChooseOutstandingDraws() {
+    const results = [];
+    for (const player of this.players) {
+      if (player instanceof Hacker && player.awaitingDrawChoice) {
+        results.push({ playerName: player.name, ...this.chooseHackerDraw(player.name, { security: 1, hacker: 1 }) });
+      }
+    }
+    return results;
+  }
+
+  autoPassMissingPlayers() {
+    const results = [];
+    this.autoChooseOutstandingDraws();
+    for (const player of this.players) {
+      if (this.turnSubmissions[player.name] === undefined && !player.awaitingDrawChoice) {
+        results.push({ playerName: player.name, ...this.submitCards(player.name, []) });
+      }
+    }
+    return results;
+  }
+
+  autoDiscardOutstanding() {
+    const results = [];
+    for (const player of this.players) {
+      if (!player.mustDiscard()) continue;
+      const refs = player.cards.slice(0, player.discardCount()).map(card => card.id);
+      results.push({ playerName: player.name, ...this.discardCards(player.name, refs, { force: true }) });
+    }
+    return results;
   }
 
   chooseHackerDraw(playerName, { security = 0, hacker = 0 } = {}) {
@@ -106,12 +211,12 @@ class Game {
 
   submitCards(playerName, cardRefs = [], cardOptions = {}) {
     if (this.phase !== 'playing') return { ok: false, error: 'Game is not in the playing phase' };
+    if (this.turnPhase !== TURN_PHASES.PLAY) return { ok: false, error: 'Cards can only be submitted during the play timer' };
     if (!Array.isArray(cardRefs)) return { ok: false, error: 'Card submission must be an array' };
 
     const player = this.getPlayer(playerName);
     if (!player) return { ok: false, error: 'Player not found or has been eliminated' };
     if (player.awaitingDrawChoice) return { ok: false, error: 'Choose your deck draw first' };
-    if (player.mustDiscard()) return { ok: false, error: 'Discard before submitting' };
     if (this.turnSubmissions[playerName] !== undefined) return { ok: false, error: 'Already submitted this turn' };
 
     const maxCards = player instanceof Hacker ? HACKER_MAX_CARDS_PER_TURN : SECURITY_MAX_CARDS_PER_TURN;
@@ -126,10 +231,6 @@ class Game {
     const kindCheck = this._validateSubmissionKinds(player, toPlay);
     if (!kindCheck.ok) return kindCheck;
 
-    if (player instanceof Hacker && this.turnNumber <= 1 && toPlay.some(card => card.type === 'attack')) {
-      return { ok: false, error: 'The Hacker cannot submit attack cards on the first cycle' };
-    }
-
     for (const card of toPlay) {
       if (card.hackerOnly && !(player instanceof Hacker)) return { ok: false, error: `${card.name} is not a security card` };
       if (!card.isPlayable(this.system)) return { ok: false, error: `${card.name} cannot be played right now` };
@@ -141,7 +242,7 @@ class Game {
       if (card.name === 'Check Server Log' || card.name === 'False Flag') {
         card.targetPlayerName = options.targetPlayerName || options.target || null;
       }
-      if (card.type === 'defence' || card.name === 'Insider Sabotage' || card.category === 'Sabotage') {
+      if (card.type === 'defence') {
         const rawSlot = options.defenceSlotIndex ?? options.slotIndex ?? options.slot;
         const slotIndex = Number(rawSlot);
         card.defenceSlotIndex = Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < 3 ? slotIndex : null;
@@ -152,6 +253,7 @@ class Game {
 
       player.hasPlayedCards = true;
       player.cardsPlayedThisTurn.push(card);
+      card.submittedAtOrder = ++this.submissionOrder;
       card.onPlay(this.system);
       this.system.addProcess(card);
     }
@@ -162,7 +264,8 @@ class Game {
     return { ok: true, mustDiscard: player.mustDiscard(), discardCount: player.discardCount() };
   }
 
-  discardCards(playerName, cardRefs = []) {
+  discardCards(playerName, cardRefs = [], { force = false } = {}) {
+    if (!force && this.turnPhase !== TURN_PHASES.DISCARD) return { ok: false, error: 'Cards can only be discarded during the discard timer' };
     const player = this.getPlayer(playerName);
     if (!player) return { ok: false, error: 'Player not found or has been eliminated' };
     if (!player.mustDiscard()) return { ok: false, error: 'You do not need to discard right now' };
@@ -319,7 +422,7 @@ class Game {
       const json = isMe ? player.toPrivateJSON() : player.toPublicJSON();
       json.isEliminated = eliminated;
       json.isSpectator = false;
-      json.submittedThisTurn = this.turnSubmissions[player.name] !== undefined;
+      json.submittedThisTurn = isMe ? this.turnSubmissions[player.name] !== undefined : false;
       json.submittedCardsThisTurn = isMe ? (this.turnSubmissions[player.name] || []).map(card => card.toJSON()) : [];
       json.tasksCompleted = this.taskCompletionCounts[player.name] || 0;
 
@@ -381,6 +484,11 @@ class Game {
     return {
       turnNumber: this.turnNumber,
       phase: this.phase,
+      turnPhase: this.turnPhase,
+      turnPhaseStartedAt: this.turnPhaseStartedAt,
+      turnPhaseEndsAt: this.turnPhaseEndsAt,
+      turnPhaseDurationMs: this.turnPhaseDurationMs,
+      yourDiscussionReady: Boolean(forPlayerName && this.discussionReady[forPlayerName]),
       winner: this.winner,
       endReason: this.endReason,
       system: this.system.toPublicJSON(),
@@ -401,9 +509,7 @@ class Game {
 
   canResolveTurn() {
     if (this.phase !== 'playing') return false;
-    return this.players.every(player =>
-      !player.awaitingDrawChoice && !player.mustDiscard() && this.turnSubmissions[player.name] !== undefined
-    );
+    return this.allPlayersSubmitted() && this.allDiscardsCleared();
   }
 
   _resolveSubmittedCards(player, cardRefs) {
@@ -637,8 +743,6 @@ class Game {
           const laneText = (event.laneLabels || [event.laneLabel || event.lane]).filter(Boolean).join(' + ') || 'matching lane';
           return `Task on ${laneText}: ${event.defended ? 'defended' : 'undefended'}, progress +${event.progress}.`;
         }
-        case 'false-flag-frame':
-          return event.framed ? `${event.ownerName || 'Unknown'} framed ${event.targetName} as hostile for server-log checks.` : `${event.ownerName || 'Unknown'} tried to plant a false flag, but no valid target was available.`;
         case 'server-log-check':
           if (event.insufficientEvidence) return `${event.ownerName} could not check logs: insufficient Evidence.`;
           return `${event.ownerName} checked ${event.targetName || 'nobody'}: ${event.checked ? (event.hostile ? 'hostile card found' : 'no hostile card') : 'not checked'}.`;
@@ -693,12 +797,6 @@ class Game {
       for (const player of debug.reconResult.players) {
         const cards = (player.cards || []).map(card => card.name).join(', ') || 'empty hand';
         console.log(`  ${player.name}: ${cards}`);
-      }
-    }
-    if (debug.falseFlagResults?.length) {
-      console.log('FALSE FLAG FRAMES');
-      for (const result of debug.falseFlagResults) {
-        console.log(`  ${result.ownerName || 'unknown'} -> ${result.targetName || 'none'}: ${result.framed ? 'framed as hostile' : 'no valid target'}`);
       }
     }
     if (debug.serverLogResults?.length) {
@@ -762,5 +860,10 @@ class Game {
     return { ok: true, outcome: 'wrong-player', eliminated: eliminatedName, votingExpired: true };
   }
 }
+
+Game.TURN_PHASES = TURN_PHASES;
+Game.DISCUSSION_DURATION_MS = DISCUSSION_DURATION_MS;
+Game.PLAY_DURATION_MS = PLAY_DURATION_MS;
+Game.DISCARD_DURATION_MS = DISCARD_DURATION_MS;
 
 module.exports = Game;

@@ -30,6 +30,7 @@ test('socket turn simulation sends Reconnaissance only to the Hacker', async (t)
   const roomData = harness.rooms[harness.room];
   const game = roomData.game;
   const hacker = game.getHacker();
+  game.startPlayPhase(30000);
   const hackerIndex = harness.names.indexOf(hacker.name);
 
   hacker.cards = [];
@@ -72,12 +73,12 @@ test('socket turn simulation sends server-log result only to the checking player
   const roomData = harness.rooms[harness.room];
   const game = roomData.game;
   const hacker = game.getHacker();
+  game.startPlayPhase(30000);
   const checker = game.getEngineers()[0];
   const hackerIndex = harness.names.indexOf(hacker.name);
   const checkerIndex = harness.names.indexOf(checker.name);
 
   game.system.evidence = 1;
-  game.turnNumber = 2;
   hacker.cards = [];
   hacker.addCard(new attacks.Phishing());
   checker.cards = [];

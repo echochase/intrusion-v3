@@ -1,4 +1,4 @@
-export const CARD_TEXT = {
+const CARD_TEXT = {
   'Security Detail': {
     description: 'Hire a team of security guards to maintain physical security on campus and prevent theft.',
     effectDescription: 'Defends the Physical Lane. Blocks Physical Data Theft.',
@@ -25,15 +25,20 @@ export const CARD_TEXT = {
   },
   'Rapid Incident Response': {
     description: 'Prevention is better, but sometimes we need a quick cure to stop further damage!',
-    effectDescription: 'Nullify an attack that is occurring in the same turn. DDoS attacks take priority. Priority: compute this card first amongst all other cards.',
+    effectDescription: 'Nullify an attack that is occurring in the same turn. DDoS attacks take priority.',
   },
   'Forensic Analysis': {
     description: 'Review access logs, packet trails, and system anomalies.',
     effectDescription: 'Gain 1 Evidence.',
   },
+  'Threat Mitigation Protocol': {
+    description: 'Review access logs, packet trails, and system anomalies.',
+    effectDescription: 'Gain 1 Evidence.',
+    displayName: 'Forensic Analysis',
+  },
   'Zero-Day Attack': {
     description: 'Exploit a previously unknown vulnerability before the defenders have a patch, signature, or reliable way to recognise the threat.',
-    effectDescription: 'Condition: can only be played when the SecEng team is within 2 progress of completing the project. Removes 1 integrity point. This attack cannot be blocked by lane defences.',
+    effectDescription: 'Can only be played when the SecEng team is within 2 progress of completing the project. Deal 1 damage to system integrity. This attack cannot be blocked by lane defences.',
   },
   'Physical Data Theft': {
     description: 'Sneak into the tech department and steal sensitive information. Don’t get caught!',
@@ -57,7 +62,7 @@ export const CARD_TEXT = {
   },
   'False Flag': {
     description: 'Leave forged evidence in the logs.',
-    effectDescription: 'Choose a player. The card they play this turn appears hostile. This card is not hostile.',
+    effectDescription: 'Choose a player. The card they play this turn appears hostile.',
   },
   'Insider Sabotage': {
     description: 'Pay an intern to do a lousy job at defending the system. And to not ask questions.',
@@ -65,61 +70,63 @@ export const CARD_TEXT = {
   },
   Reconnaissance: {
     description: 'Some passive recon never hurts.',
-    effectDescription: 'At the end of the turn, privately view each player’s hand. Stealth: this is not hostile and will not show up as a hostile action.',
+    effectDescription: 'At the end of the turn, privately view each player’s hand. This will not show up as a hostile action.',
   },
   'Server Maintenance': {
     description: 'Shut down the server for maintenance. Grants 1 Progress Point.',
-    effectDescription: 'Condition: to complete this card, the Network Lane must be protected.',
+    effectDescription: 'To complete this card, the Network Lane must be protected.',
   },
   'Company Meeting': {
     description: 'Hold a company meeting to align the team on security priorities. Grants 1 Progress Point.',
-    effectDescription: 'Condition: to complete this card, the Social Lane must be protected.',
+    effectDescription: 'To complete this card, the Social Lane must be protected.',
   },
   'Model Training': {
     description: 'Train and validate the web-facing model before deployment. Grants 1 Progress Point.',
-    effectDescription: 'Condition: to complete this card, the Web Lane must be protected.',
+    effectDescription: 'To complete this card, the Web Lane must be protected.',
   },
   'Responsible Engineer': {
     description: 'Audit privileged account access. Grants 1 Progress Point.',
-    effectDescription: 'Condition: to complete this card, the Credentials Lane must be protected.',
+    effectDescription: 'To complete this card, the Credentials Lane must be protected.',
   },
   'Hazard Report': {
     description: 'File a hazard report for physical risks around the workspace. Grants 1 Progress Point.',
-    effectDescription: 'Condition: to complete this card, the Physical Lane must be protected.',
+    effectDescription: 'To complete this card, the Physical Lane must be protected.',
   },
   'Corporate Announcement': {
     description: 'Publish a corporate announcement so staff know the current security expectations. Grants 1 Progress Point.',
-    effectDescription: 'Condition: to complete this card, the Social Lane must be protected.',
+    effectDescription: 'To complete this card, the Social Lane must be protected.',
   },
   'Company Mixer Event': {
     description: 'Run a company mixer event to build trust and improve internal coordination. Grants 2 Progress Points.',
-    effectDescription: 'Condition: to complete this card, the Social Lane AND the Physical Lane must be protected.',
+    effectDescription: 'To complete this card, the Social Lane and the Physical Lane must be protected.',
   },
   'Access Review': {
     description: 'Review user access lists and remove unnecessary credentials. Grants 2 Progress Points.',
-    effectDescription: 'Condition: to complete this card, the Credentials Lane AND the Web Lane must be protected.',
+    effectDescription: 'To complete this card, the Credentials Lane and the Web Lane must be protected.',
   },
   'Secure Build Review': {
     description: 'Review the latest web build for unsafe inputs and risky deployment changes. Grants 2 Progress Points.',
-    effectDescription: 'Condition: to complete this card, the Web Lane AND the Network Lane must be protected.',
+    effectDescription: 'To complete this card, the Web Lane and the Network Lane must be protected.',
   },
   'Office Lockup Audit': {
     description: 'Audit office lockup procedures and secure exposed workstations. Grants 1 Progress Point.',
-    effectDescription: 'Condition: to complete this card, the Physical Lane must be protected.',
+    effectDescription: 'To complete this card, the Physical Lane must be protected.',
   },
 };
 
-export function cardTextFor(cardOrName) {
-  const name = typeof cardOrName === 'string' ? cardOrName : cardOrName?.name;
+export function cardTextFor(name) {
   return CARD_TEXT[name] || {};
 }
 
 export function enrichCardText(card) {
   if (!card) return card;
-  const text = cardTextFor(card.name);
+  const fallback = cardTextFor(card.name) || {};
   return {
     ...card,
-    description: card.description || text.description || '',
-    effectDescription: card.effectDescription || text.effectDescription || '',
+    name: fallback.displayName || card.name,
+    description: card.description || fallback.description || '',
+    effectDescription: card.effectDescription || fallback.effectDescription || '',
   };
 }
+
+export default CARD_TEXT;

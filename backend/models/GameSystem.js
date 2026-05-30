@@ -24,6 +24,7 @@ class GameSystem {
     this.processes = [];
     this.newProcesses = [];
     this.defenceCards = [null, null, null];
+    this.maxDefenceSlots = 3;
     this.replacedDefencesThisTurn = [];
 
     this.rapidIncidentResponses = 0;
@@ -43,10 +44,9 @@ class GameSystem {
     this.currentCard = null;
     this.currentCardEvents = [];
     this.serverLogResults = [];
-    this.falseFlagFrames = {};
-    this.falseFlagResults = [];
     this.reconResult = null;
     this.submissionSnapshot = {};
+    this.falseFlagFrames = [];
     this.turnDebug = null;
   }
 
@@ -59,10 +59,9 @@ class GameSystem {
     this.currentCard = null;
     this.currentCardEvents = [];
     this.serverLogResults = [];
-    this.falseFlagFrames = {};
-    this.falseFlagResults = [];
     this.reconResult = null;
     this.submissionSnapshot = submissionSnapshot || {};
+    this.falseFlagFrames = [];
     this.replacedDefencesThisTurn = [];
     this.rapidIncidentResponses = 0;
     this.ddosDisruptionActive = false;
@@ -206,12 +205,11 @@ class GameSystem {
       evidenceRevealThreshold: EVIDENCE_REVEAL_THRESHOLD,
       hackerRevealed: this.hackerRevealed,
       projectProgressGainedThisTurn: this.projectProgressGainedThisTurn,
-      taskProgressCancelled: this.taskProgressCancelled,
       ddosDisruptionActive: this.ddosDisruptionActive,
       processCapacityReduction: this.processCapacityReduction,
       replacedDefences: (this.replacedDefencesThisTurn || []).map(card => this._debugCard(card)),
       serverLogResults: [...(this.serverLogResults || [])],
-      falseFlagResults: [...(this.falseFlagResults || [])],
+      falseFlagFrames: [...(this.falseFlagFrames || [])],
       reconResult: this.reconResult,
     };
 
@@ -224,11 +222,11 @@ class GameSystem {
     const rank = (card) => {
       if (card.name === 'Rapid Incident Response') return 0;
       if (card.type === 'attack') return 1;
-      if (card.type === 'defence' || card.name === 'Insider Sabotage') return 2;
-      if (card.name === 'False Flag') return 3;
-      if (card.name === 'Check Server Log') return 4;
-      if (card.type === 'task') return 5;
-      return 6;
+      if (card.type === 'defence') return 2;
+      if (card.name === 'False Flag') return 2.5;
+      if (card.name === 'Check Server Log') return 3;
+      if (card.type === 'task') return 4;
+      return 5;
     };
 
     return [...cards].sort((a, b) => rank(a) - rank(b) || this._randomTie());
@@ -292,29 +290,29 @@ class GameSystem {
     return this.defenceCards.find(card => card?.lane === lane) || null;
   }
 
-  _slotForPlacement(card, { preferSameLane = true } = {}) {
-    const requestedSlot = Number.isInteger(card?.defenceSlotIndex) && card.defenceSlotIndex >= 0 && card.defenceSlotIndex < 3
-      ? card.defenceSlotIndex
-      : null;
-    if (requestedSlot !== null) return requestedSlot;
+  _enqueueDefenceCard(card) {
+    const next = this.defenceCards.filter(Boolean);
+    next.push(card);
 
-    const existingSameLane = preferSameLane
-      ? this.defenceCards.findIndex(defence => defence?.lane === card?.lane)
-      : -1;
-    if (existingSameLane !== -1) return existingSameLane;
+    let replaced = null;
+    if (next.length > this.maxDefenceSlots) {
+      replaced = next.shift() || null;
+    }
 
-    const firstEmpty = this.defenceCards.findIndex(defence => !defence);
-    return firstEmpty !== -1 ? firstEmpty : 0;
+    while (next.length < this.maxDefenceSlots) next.push(null);
+    this.defenceCards = next.slice(0, this.maxDefenceSlots);
+
+    if (replaced) this.replacedDefencesThisTurn.push(replaced);
+    return {
+      replaced,
+      slotIndex: this.defenceCards.findIndex(defence => defence?.id === card.id),
+    };
   }
 
   installDefenceCard(card) {
     if (!card?.lane || card.lane === Lane.SPECIAL) return null;
 
-    const slotIndex = this._slotForPlacement(card, { preferSameLane: true });
-    const replaced = this.defenceCards[slotIndex] || null;
-    this.defenceCards[slotIndex] = card;
-
-    if (replaced) this.replacedDefencesThisTurn.push(replaced);
+    const { replaced, slotIndex } = this._enqueueDefenceCard(card);
     this.currentCardEvents.push({
       kind: 'defence-installed',
       lane: card.lane,
@@ -322,22 +320,20 @@ class GameSystem {
       replacedName: replaced?.name || null,
       ownerName: card.owner?.name || null,
       slotIndex,
+      queuePosition: slotIndex,
     });
     return replaced;
   }
 
   installSabotageCard(card) {
-    const slotIndex = this._slotForPlacement(card, { preferSameLane: false });
-    const replaced = this.defenceCards[slotIndex] || null;
-    this.defenceCards[slotIndex] = card;
-
-    if (replaced) this.replacedDefencesThisTurn.push(replaced);
+    const { replaced, slotIndex } = this._enqueueDefenceCard(card);
     this.currentCardEvents.push({
       kind: 'sabotage-installed',
       sabotageName: card.name,
       replacedName: replaced?.name || null,
       ownerName: card.owner?.name || null,
       slotIndex,
+      queuePosition: slotIndex,
     });
     return replaced;
   }
@@ -401,20 +397,24 @@ class GameSystem {
     this.currentCardEvents.push({ kind: 'reconnaissance' });
   }
 
-
   resolveFalseFlag(card) {
+    const targetName = card.targetPlayerName || card.target || null;
     const ownerName = card.owner?.name || null;
-    const names = Object.keys(this.submissionSnapshot || {}).filter(name => name !== ownerName);
-    let targetName = card.targetPlayerName || null;
 
-    if (!targetName || targetName === '__random__' || targetName === 'random' || !names.includes(targetName)) {
-      targetName = names.length ? names[Math.floor(Math.random() * names.length)] : null;
+    if (targetName) {
+      this.falseFlagFrames.push({
+        ownerName,
+        targetName,
+        cardName: displayCardName(card),
+      });
     }
 
-    const result = { ownerName, targetName, framed: Boolean(targetName) };
-    if (targetName) this.falseFlagFrames[targetName] = result;
-    this.falseFlagResults.push(result);
-    this.currentCardEvents.push({ kind: 'false-flag-frame', ...result });
+    this.currentCardEvents.push({
+      kind: 'false-flag-planted',
+      ownerName,
+      targetName,
+      framed: Boolean(targetName),
+    });
   }
 
   resolveCheckServerLog(card) {
@@ -441,9 +441,9 @@ class GameSystem {
     }
 
     const submitted = targetName ? (this.submissionSnapshot[targetName] || []) : [];
-    const framed = Boolean(targetName && this.falseFlagFrames?.[targetName]);
-    const hostile = framed || submitted.some(entry => entry.isHostile || entry.type === 'attack');
-    const result = { ownerName, targetName, hostile, checked: Boolean(targetName), insufficientEvidence: false };
+    const framed = Boolean(targetName && (this.falseFlagFrames || []).some(frame => frame.targetName === targetName));
+    const hostile = submitted.some(entry => entry.isHostile || entry.type === 'attack') || framed;
+    const result = { ownerName, targetName, hostile, checked: Boolean(targetName), insufficientEvidence: false, framed };
     this.serverLogResults.push(result);
     this.currentCardEvents.push({ kind: 'server-log-check', ...result });
   }
@@ -538,7 +538,6 @@ class GameSystem {
       numTasksRequired: this.totalTasks,
       numTasksCompleted: Math.max(0, this.totalTasks - this.numTasks),
       projectProgressGainedThisTurn: this.projectProgressGainedThisTurn,
-      taskProgressCancelled: this.taskProgressCancelled,
       maxProcesses: this.maxProcesses,
       maxComputingCapacity: this.maxProcesses,
       computingCapacity: this.currentMaxProcesses,
@@ -606,7 +605,6 @@ class GameSystem {
     const sabotage = cardEvents.find(event => event.kind === 'sabotage-installed');
     const capacityReduced = cardEvents.find(event => event.kind === 'processing-capacity-reduced');
     const logCheck = cardEvents.find(event => event.kind === 'server-log-check');
-    const falseFlag = cardEvents.find(event => event.kind === 'false-flag-frame');
     const hackerRevealed = cardEvents.find(event => event.kind === 'hacker-revealed-by-evidence');
     const evidenceGained = afterEvidence - beforeEvidence;
 
@@ -654,13 +652,6 @@ class GameSystem {
         message = `Someone attempted to complete ${displayCardName(card)}, but it did not advance the project.`;
       }
       outcome = 'task';
-    } else if (falseFlag) {
-      title = falseFlag.framed ? 'False flag planted' : 'False flag failed';
-      message = falseFlag.framed
-        ? 'A misleading hostile-action trail was planted in the server logs.'
-        : 'A misleading hostile-action trail was attempted, but there was no valid target.';
-      outcome = 'false-flag';
-      revealOwner = false;
     } else if (logCheck) {
       title = 'Private investigation';
       message = 'A private investigation resolved.';
@@ -671,10 +662,18 @@ class GameSystem {
       message = 'Someone prepared Rapid Incident Response. It will block one attack this turn only.';
       outcome = 'response-ready';
       revealOwner = false;
-    } else if (card.name === 'Forensic Analysis') {
+    } else if (card.name === 'Forensic Analysis' || card.name === 'Threat Mitigation Protocol') {
       title = 'Evidence gained';
       message = `Someone completed Forensic Analysis. The team gained ${Math.max(0, evidenceGained) || 1} Evidence.${hackerRevealed ? ' Evidence reached 5, so the Hacker is now publicly exposed.' : ''}`;
       outcome = 'evidence';
+      revealOwner = false;
+    } else if (card.name === 'False Flag') {
+      const planted = cardEvents.find(event => event.kind === 'false-flag-planted');
+      title = 'False trail planted';
+      message = planted?.targetName
+        ? 'Forged evidence was planted in the logs. A future investigation this cycle may read one player’s action as hostile.'
+        : 'False Flag resolved, but no target was selected.';
+      outcome = 'false-flag';
       revealOwner = false;
     } else if (card.name === 'Reconnaissance') {
       title = 'Reconnaissance complete';
