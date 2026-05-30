@@ -54,7 +54,7 @@ test('Check Server Log detects hostile attack submissions even if the attack has
   const { result: summary } = withQuietConsole(() => game.resolveTurn());
 
   assert.equal(summary.serverLogResults[0].hostile, true);
-  assert.match(summary.privateIncidentReports[engineer.name][0].message, /hostile card/i);
+  assert.match(summary.privateIncidentReports[engineer.name][0].message, /hostile action/i);
 });
 
 test('private server-log reports are only assigned to the checking player', () => {
@@ -103,7 +103,7 @@ test('False Flag frames a clean player as hostile without making the Hacker look
   assert.equal(falseFlag.isHostile, false);
   assert.equal(summary.serverLogResults[0].targetName, framedEngineer.name);
   assert.equal(summary.serverLogResults[0].hostile, true);
-  assert.match(summary.privateIncidentReports[checkingEngineer.name][0].message, /hostile card/i);
+  assert.match(summary.privateIncidentReports[checkingEngineer.name][0].message, /hostile action/i);
 });
 
 test('False Flag itself does not make the Hacker fail a server log check', () => {
@@ -127,4 +127,29 @@ test('False Flag itself does not make the Hacker fail a server log check', () =>
 
   assert.equal(summary.serverLogResults[0].targetName, hacker.name);
   assert.equal(summary.serverLogResults[0].hostile, false);
+});
+
+
+test('Check Server Log and False Flag stay out of the public incident report', () => {
+  const game = createStartedGame();
+  const hacker = getHacker(game);
+  const framedEngineer = getEngineer(game, 0);
+  const checkingEngineer = getEngineer(game, 1);
+  const [falseFlag] = putInHand(hacker, [new actions.FalseFlag()]);
+  const [logCard] = putInHand(checkingEngineer, [new actions.CheckServerLog()]);
+
+  game.system.evidence = 1;
+  submitAndAssert(game, hacker, [falseFlag.id], {
+    [falseFlag.id]: { targetPlayerName: framedEngineer.name },
+  });
+  submitAndAssert(game, checkingEngineer, [logCard.id], {
+    [logCard.id]: { targetPlayerName: framedEngineer.name },
+  });
+  passAllExcept(game, [hacker.name, checkingEngineer.name]);
+
+  const { result: summary } = withQuietConsole(() => game.resolveTurn());
+  const publicNames = summary.incidentReport.map((event) => event.cardName || event.title || '');
+  assert.equal(publicNames.includes('Check Server Log'), false);
+  assert.equal(publicNames.includes('False Flag'), false);
+  assert.ok(summary.privateIncidentReports[checkingEngineer.name]);
 });

@@ -28,6 +28,7 @@ test('Security Engineers may submit at most one card', () => {
 
 test('the Hacker may submit one Hacker card plus one Security card, but not two Hacker cards', () => {
   const game = createStartedGame();
+  game.turnNumber = 2;
   const hacker = getHacker(game);
   const [attack, recon, securityCard] = putInHand(hacker, [
     new attacks.CredentialTheft(),
@@ -41,6 +42,22 @@ test('the Hacker may submit one Hacker card plus one Security card, but not two 
 
   const validMix = game.submitCards(hacker.name, [attack.id, securityCard.id]);
   assert.equal(validMix.ok, true);
+});
+
+test('the Hacker cannot submit attack cards on the first turn', () => {
+  const game = createStartedGame();
+  const hacker = getHacker(game);
+  const [attack, securityCard] = putInHand(hacker, [
+    new attacks.CredentialTheft(),
+    new actions.ForensicAnalysis(),
+  ]);
+
+  const attackOnly = game.submitCards(hacker.name, [attack.id]);
+  assert.equal(attackOnly.ok, false);
+  assert.match(attackOnly.error, /cannot play attack cards on the first turn/i);
+
+  const coverOnly = game.submitCards(hacker.name, [securityCard.id]);
+  assert.equal(coverOnly.ok, true);
 });
 
 test('Security Engineers cannot submit Hacker-only cards', () => {

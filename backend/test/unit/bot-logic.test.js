@@ -7,6 +7,7 @@ const {
   getHacker,
   putInHand,
   actions,
+  attacks,
   defences,
 } = require('../support/gameTestUtils');
 
@@ -74,4 +75,23 @@ test('bot vote targets follow the current plurality when votes exist', () => {
     votes: { Alice: 'Bob', Cara: 'Bob' },
   };
   assert.equal(botLogic.chooseVoteTarget(game, bot, () => 0), 'Bob');
+});
+
+test('hacker bots do not play attack cards on the first turn', () => {
+  const game = createStartedGame(['Bot 1', 'Alice', 'Bob', 'Cara']);
+  const bot = getHacker(game);
+  bot.isBot = true;
+  putInHand(bot, [
+    new attacks.DDoS(),
+    new attacks.CredentialTheft(),
+    new defences.EmployeeAwareness(),
+  ]);
+
+  const choice = botLogic.chooseSubmission(game, bot, () => 0);
+  assert.equal(choice.cardIds.includes(bot.cards.find(card => card.name === 'DDoS Attack').id), false);
+  assert.equal(choice.cardIds.includes(bot.cards.find(card => card.name === 'Credential Theft').id), false);
+
+  const play = botLogic.playBotNow(game, bot, () => 0);
+  assert.equal(play.ok, true);
+  assert.equal((game.turnSubmissions[bot.name] || []).some(card => card.type === 'attack'), false);
 });

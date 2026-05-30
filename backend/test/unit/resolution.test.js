@@ -11,7 +11,7 @@ const {
   addInstalledDefence,
 } = require('../support/gameTestUtils');
 
-test('turn resolution uses the documented priority buckets', () => {
+test('turn resolution puts Rapid Incident Response first and randomises the remaining queue', () => {
   const system = new GameSystem(4);
   system.evidence = 1;
 
@@ -34,19 +34,36 @@ test('turn resolution uses the documented priority buckets', () => {
     Engineer: [rapid.toJSON(), defence.toJSON(), logCheck.toJSON(), task.toJSON(), evidence.toJSON()],
   });
 
-  assert.deepEqual(
-    system.turnDebug.orderedQueue.map((entry) => entry.name),
-    [
-      'Rapid Incident Response',
-      'Credential Theft',
-      'Two-Factor Authentication',
-      'Check Server Log',
-      'Responsible Engineer',
-      'Forensic Analysis',
-    ],
-  );
+  const names = system.turnDebug.orderedQueue.map((entry) => entry.name);
+  assert.equal(names[0], 'Rapid Incident Response');
+  assert.deepEqual(new Set(names.slice(1)), new Set([
+    'Credential Theft',
+    'Two-Factor Authentication',
+    'Check Server Log',
+    'Responsible Engineer',
+    'Forensic Analysis',
+  ]));
 });
 
+
+test('DDoS priority puts the Hacker red card after Rapid Incident Response', () => {
+  const system = new GameSystem(4);
+  const hacker = new Hacker('Hacker');
+  const engineer = new SecurityEngineer('Engineer');
+  const rapid = new actions.RapidIncidentResponseAction(engineer);
+  const ddos = new attacks.DDoS(hacker);
+  const cover = new defences.EmployeeAwareness(hacker);
+  const task = new tasks.CompanyMeeting(engineer);
+
+  for (const card of [task, cover, ddos, rapid]) system.addProcess(card);
+  system.consumeProcesses(4, {});
+
+  const names = system.turnDebug.orderedQueue.map((entry) => entry.name);
+  assert.equal(names[0], 'Rapid Incident Response');
+  assert.equal(names[1], 'DDoS Attack');
+  assert.ok(names.includes('Employee Awareness'));
+  assert.ok(names.includes('Company Meeting'));
+});
 
 test('Rapid Incident Response and Forensic Analysis resolve anonymously in public reports', () => {
   const system = new GameSystem(4);

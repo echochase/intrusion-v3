@@ -231,6 +231,10 @@ class Game {
     const kindCheck = this._validateSubmissionKinds(player, toPlay);
     if (!kindCheck.ok) return kindCheck;
 
+    if (player instanceof Hacker && this.turnNumber <= 1 && toPlay.some(card => card.type === 'attack')) {
+      return { ok: false, error: 'The Hacker cannot play attack cards on the first turn' };
+    }
+
     for (const card of toPlay) {
       if (card.hackerOnly && !(player instanceof Hacker)) return { ok: false, error: `${card.name} is not a security card` };
       if (!card.isPlayable(this.system)) return { ok: false, error: `${card.name} cannot be played right now` };
@@ -242,12 +246,6 @@ class Game {
       if (card.name === 'Check Server Log' || card.name === 'False Flag') {
         card.targetPlayerName = options.targetPlayerName || options.target || null;
       }
-      if (card.type === 'defence') {
-        const rawSlot = options.defenceSlotIndex ?? options.slotIndex ?? options.slot;
-        const slotIndex = Number(rawSlot);
-        card.defenceSlotIndex = Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < 3 ? slotIndex : null;
-      }
-
       if (player.task?.id === card.id) player.task = null;
       else player.removeCardFromHand(card.id, { clearOwner: false });
 
@@ -689,7 +687,7 @@ class Game {
         type: 'private',
         title: 'Private server log result',
         message: result.checked
-          ? `You checked ${result.targetName}. ${result.hostile ? 'They have played a hostile card this cycle, which means they are the Hacker.' : 'They have not played a hostile card this cycle.'}`
+          ? `You checked ${result.targetName}. ${result.hostile ? 'It would seem they took a hostile action this turn.' : 'They do not appear to have taken a hostile action this turn.'}`
           : (result.insufficientEvidence ? 'Not enough Evidence was available to check the server log.' : 'No valid log target was available.'),
         ownerName: result.ownerName,
         targetName: result.targetName,

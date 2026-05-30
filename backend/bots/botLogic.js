@@ -1,4 +1,5 @@
 const { Hacker } = require('../models/Player');
+const { Lane } = require('../models/defines');
 
 const MIN_PLAY_DELAY_MS = 2000;
 const MAX_PLAY_DELAY_MS = 10000;
@@ -63,6 +64,38 @@ function taskLooksReady(game, task) {
   return lanes.every(lane => game.system?.isLaneDefended?.(lane));
 }
 
+
+function openLanes(game) {
+  return (game?.system?.laneStates?.() || [])
+    .filter(lane => lane.status === 'open' && lane.lane)
+    .map(lane => lane.lane);
+}
+
+function chooseBestHackerAttack(game, player, rng = Math.random) {
+  if ((game?.turnNumber || 0) <= 1) return null;
+  const hand = player.cards || [];
+  const playableAttacks = hand.filter(card => {
+    if (!card || !(card.type === 'attack' || card.isHostile || card.hackerOnly)) return false;
+    if (typeof card.isPlayable === 'function' && !card.isPlayable(game.system)) return false;
+    return true;
+  });
+
+  const laneAttacks = playableAttacks.filter(card => card.type === 'attack' && card.lane && card.lane !== Lane.SPECIAL);
+  const opens = openLanes(game);
+  const openAttackCards = laneAttacks.filter(card => opens.includes(card.lane));
+
+  if (openAttackCards.length) {
+    const ddos = openAttackCards.find(card => card.name === 'DDoS Attack');
+    if (ddos && opens.length >= 2) return ddos;
+    return openAttackCards[Math.floor(rng() * openAttackCards.length)];
+  }
+
+  const nonLaneHostile = playableAttacks.find(card => card.lane === Lane.SPECIAL || card.type !== 'attack');
+  if (nonLaneHostile) return nonLaneHostile;
+
+  return null;
+}
+
 function chooseSecurityCard(game, player, rng = Math.random) {
   const hand = player.cards || [];
   if (taskLooksReady(game, player.task)) return player.task;
@@ -87,8 +120,7 @@ function chooseSecurityCard(game, player, rng = Math.random) {
 }
 
 function chooseHackerCards(game, player, rng = Math.random) {
-  const hand = player.cards || [];
-  const hackerCard = firstPlayable(game, player, hand, card => card.hackerOnly || card.type === 'attack');
+  const hackerCard = chooseBestHackerAttack(game, player, rng);
   const securityCard = chooseSecurityCard(game, player, rng);
   const cards = [];
   if (hackerCard) cards.push(hackerCard);
@@ -186,6 +218,8 @@ module.exports = {
   isBotGamePlayer,
   nextBotName,
   createBotLobbyPlayer,
+  openLanes,
+  chooseBestHackerAttack,
   chooseSubmission,
   chooseDiscardIds,
   chooseVoteProposalResponse,

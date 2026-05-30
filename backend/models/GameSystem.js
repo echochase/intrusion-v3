@@ -69,10 +69,12 @@ class GameSystem {
     this.projectProgressGainedThisTurn = 0;
     this.taskProgressCancelled = false;
 
+    const ddosPriorityActive = Boolean(this.ddosDisruptionActive) || this.newProcesses.some(card => card?.name === 'DDoS Attack');
+
     this.processes = [...this.newProcesses];
     this.newProcesses = [];
 
-    const orderedQueue = this._orderedQueue(this.processes);
+    const orderedQueue = this._orderedQueue(this.processes, { ddosPriorityActive });
     this.processes = orderedQueue;
 
     let activeProcessLimit = this.maxProcesses;
@@ -218,18 +220,40 @@ class GameSystem {
     return [...this.turnLog];
   }
 
-  _orderedQueue(cards) {
-    const rank = (card) => {
-      if (card.name === 'Rapid Incident Response') return 0;
-      if (card.type === 'attack') return 1;
-      if (card.type === 'defence') return 2;
-      if (card.name === 'False Flag') return 2.5;
-      if (card.name === 'Check Server Log') return 3;
-      if (card.type === 'task') return 4;
-      return 5;
-    };
+  _orderedQueue(cards, { ddosPriorityActive = false } = {}) {
+    const rapid = [];
+    const ddosPriorityAttacks = [];
+    const rest = [];
 
-    return [...cards].sort((a, b) => rank(a) - rank(b) || this._randomTie());
+    for (const card of cards || []) {
+      if (card?.name === 'Rapid Incident Response') {
+        rapid.push(card);
+      } else if (ddosPriorityActive && this._isHackerRedCard(card)) {
+        ddosPriorityAttacks.push(card);
+      } else {
+        rest.push(card);
+      }
+    }
+
+    return [
+      ...this._shuffleQueueGroup(rapid),
+      ...this._shuffleQueueGroup(ddosPriorityAttacks),
+      ...this._shuffleQueueGroup(rest),
+    ];
+  }
+
+  _isHackerRedCard(card) {
+    const ownerRole = card?.owner?.returnType?.() || card?.owner?.role || null;
+    return ownerRole === 'Hacker' && (card?.type === 'attack' || card?.isHostile === true);
+  }
+
+  _shuffleQueueGroup(cards) {
+    const shuffled = [...(cards || [])];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
   }
 
   _safePublicCardName(card) {
@@ -436,12 +460,11 @@ class GameSystem {
       targetName = names.length ? names[Math.floor(Math.random() * names.length)] : null;
     }
 
-    if (targetName && !this.submissionSnapshot[targetName]) {
-      targetName = names.length ? names[Math.floor(Math.random() * names.length)] : null;
-    }
-
     const submitted = targetName ? (this.submissionSnapshot[targetName] || []) : [];
-    const framed = Boolean(targetName && (this.falseFlagFrames || []).some(frame => frame.targetName === targetName));
+    const processedFrame = Boolean(targetName && (this.falseFlagFrames || []).some(frame => frame.targetName === targetName));
+    const queuedFrame = Boolean(targetName && (this.processes || []).some(process =>
+      process?.name === 'False Flag' && (process.targetPlayerName || process.target || null) === targetName));
+    const framed = processedFrame || queuedFrame;
     const hostile = submitted.some(entry => entry.isHostile || entry.type === 'attack') || framed;
     const result = { ownerName, targetName, hostile, checked: Boolean(targetName), insufficientEvidence: false, framed };
     this.serverLogResults.push(result);
@@ -691,7 +714,7 @@ class GameSystem {
       cardName: displayCardName(card),
       cardType: card.type,
       outcome,
-      publicHidden: outcome === 'investigation',
+      publicHidden: outcome === 'investigation' || outcome === 'false-flag',
       ownerName: revealOwner ? ownerName : null,
       lane: card.lane || null,
       lanes: Array.isArray(card.requiredLanes) ? [...card.requiredLanes] : (Array.isArray(card.lanes) ? [...card.lanes] : []),

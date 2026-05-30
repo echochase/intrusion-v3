@@ -73,6 +73,10 @@ test('socket turn simulation sends server-log result only to the checking player
   const roomData = harness.rooms[harness.room];
   const game = roomData.game;
   const hacker = game.getHacker();
+  // First-turn Hacker attacks are intentionally blocked by the game rules.
+  // Move this socket-flow scenario to cycle 2 so the Hacker attack can be
+  // submitted and the private server-log event can be exercised.
+  game.turnNumber = 2;
   game.startPlayPhase(30000);
   const checker = game.getEngineers()[0];
   const hackerIndex = harness.names.indexOf(hacker.name);
