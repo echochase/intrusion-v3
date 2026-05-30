@@ -191,15 +191,6 @@ function taskDomainLabel(cardOrLane) {
   return cardOrLane?.laneLabel || 'Matching';
 }
 
-function defaultDefenceSlot(system, card) {
-  const slots = system?.defenceSlots || [];
-  const sameLane = slots.find((slot) => slot.card?.lane === card?.lane);
-  if (sameLane) return sameLane.index ?? 0;
-  const empty = slots.find((slot) => slot.state === 'empty' || !slot.card);
-  if (empty) return empty.index ?? 0;
-  return 0;
-}
-
 function laneRequirementMessage(card) {
   if (!card || card.type !== 'task') return '';
   return `The ${card.laneLabel || 'matching'} Lane is undefended. ${card.name} cannot be completed yet.`;
@@ -210,10 +201,6 @@ function submissionKind(card) {
   if (card.submissionKind) return card.submissionKind;
   if (card.hackerOnly || card.type === 'attack' || card.sourceDeck === 'hacker') return 'hacker';
   return 'security';
-}
-
-function usesDefenceSlot(card) {
-  return Boolean(card && (card.type === 'defence' || card.name === 'Insider Sabotage' || card.category === 'Sabotage'));
 }
 
 function usesPlayerTarget(card) {
@@ -506,29 +493,6 @@ function LaneBoard({ lanes = [], onInspect }) {
   );
 }
 
-function DefenceSlotSelector({ card, system, value, onChange }) {
-  if (!usesDefenceSlot(card)) return null;
-  const slots = system?.defenceSlots || [];
-  const selected = value ?? defaultDefenceSlot(system, card);
-
-  return (
-    <div className="target-selector-row defence-slot-selector-row">
-      <label htmlFor={`defence-slot-${card.id}`}>Defence Slot</label>
-      <select
-        id={`defence-slot-${card.id}`}
-        value={selected}
-        onChange={(event) => onChange(Number(event.target.value))}
-      >
-        {Array.from({ length: 3 }).map((_, index) => {
-          const slot = slots.find((candidate) => candidate.index === index) || { index, state: 'empty', card: null };
-          const replacement = slot.card ? `Replace ${slot.card.name}` : 'Empty';
-          return <option key={index} value={index}>Slot {index + 1} — {replacement}</option>;
-        })}
-      </select>
-    </div>
-  );
-}
-
 function HackerDrawPanel({ you, onChoose }) {
   if (!you?.awaitingDrawChoice) return null;
 
@@ -585,6 +549,16 @@ function IntroBriefingModal({ open, role, onClose, onSkipIntro }) {
         <>
           <p>QuantumNova is a small, underfunded tech firm trying to prove that practical quantum computing is finally within reach. Their team is tiny, inexperienced, and stretched thin, but one successful demonstration could change everything.</p>
           <p>The company plans to connect its quantum system to an AI cyber-defence model and show investors a platform that can anticipate attacks before they fully emerge. But someone inside the company wants QuantumNova to fail.</p>
+        </>
+      ),
+    },
+    {
+      eyebrow: 'system routing',
+      title: 'The queue is unstable',
+      body: (
+        <>
+          <p>Submitted cards are processed in a random order. The incident report shows the order the system actually processed them, not the order players submitted them. If the network is under DDoS attack, the Hacker's hostile card cuts ahead of the random queue.</p>
+          <p>Rapid Incident Response still processes first.</p>
         </>
       ),
     },
@@ -1516,16 +1490,6 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
     }
 
     setStagedIds((current) => [...current, cardId]);
-    if (usesDefenceSlot(card)) {
-      setCardTargets((current) => ({
-        ...current,
-        [card.id]: {
-          ...(current[card.id] || {}),
-          defenceSlotIndex: current[card.id]?.defenceSlotIndex ?? defaultDefenceSlot(system, card),
-        },
-      }));
-    }
-
     if (usesPlayerTarget(card)) {
       setCardTargets((current) => ({
         ...current,
@@ -1838,19 +1802,6 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
                       .map((player) => <option key={player.name} value={player.name}>{player.name}</option>)}
                   </select>
                 </div>
-              ))}
-
-              {!hasSubmitted && stagedCards.filter(usesDefenceSlot).map((card) => (
-                <DefenceSlotSelector
-                  key={`slot-${card.id}`}
-                  card={card}
-                  system={system}
-                  value={cardTargets[card.id]?.defenceSlotIndex}
-                  onChange={(defenceSlotIndex) => setCardTargets((current) => ({
-                    ...current,
-                    [card.id]: { ...(current[card.id] || {}), defenceSlotIndex },
-                  }))}
-                />
               ))}
             </div>
 

@@ -52,7 +52,7 @@ export function GameInfoModal({ open, onClose }) {
               <RuleBlock title="Turn Structure">
                 <RulesList>
                   <p>Each active player has one task and a private hand. Each turn, players discuss, then Security Engineers secretly submit <strong>one card</strong> or pass. The Hacker may submit up to <strong>two cards</strong>, with at most one Hacker card and one Security card.</p>
-                  <p>When everyone has submitted, the System resolves emergency responses first, then hostile operations, defences, investigations, and tasks.</p>
+                  <p>When everyone has submitted, Rapid Incident Response resolves first. Every other submitted card is then processed in a random order, so the report shows what the system processed, not the order players clicked.</p>
                   <p>Hands are private. Players may claim, bluff, promise, and accuse, but they should not reveal screenshots or prove the exact contents of their hand.</p>
                 </RulesList>
               </RuleBlock>
@@ -60,7 +60,7 @@ export function GameInfoModal({ open, onClose }) {
               <RuleBlock title="Lanes, Defences, and Tasks">
                 <RulesList>
                   <p>There are five Lanes: <strong>Credentials</strong>, <strong>Social</strong>, <strong>Web</strong>, <strong>Network</strong>, and <strong>Physical</strong>.</p>
-                  <p>Only three Lanes can be defended at once. Defences are face-up and persist until replaced or sabotaged. They do not deplete when they block an attack.</p>
+                  <p>Only three Lanes can be defended at once. Defences are face-up and behave like a queue: new defences enter the newest/rightmost slot, and if the queue is full the oldest/leftmost defence is phased out. They do not deplete when they block an attack.</p>
                   <p>Tasks list the specific Lane or Lanes that must be defended before they can be completed. Some tasks need one Lane, while larger tasks can require multiple defended Lanes at the same time.</p>
                   <p>Task rewards are not always the same. Smaller tasks usually grant 1 Project Progress, while larger multi-Lane tasks can grant more progress when the team coordinates the right defences.</p>
                 </RulesList>
@@ -69,8 +69,8 @@ export function GameInfoModal({ open, onClose }) {
               <RuleBlock title="Attacks, Evidence, and Logs">
                 <RulesList>
                   <p>Attacks target Lanes. If the Lane is open, most attacks remove 1 Integrity, but DDoS works differently: it floods the Network Lane and reduces how many queued requests the system can process each turn instead of directly damaging Integrity.</p>
-                  <p>While DDoS is ongoing, the Network Lane is under attack and fewer submitted cards can resolve, so useful work may be delayed until Anti-DDoS Defence brings capacity back online. Zero-Day is a rare late-game attack that cannot be blocked by Lane defences.</p>
-                  <p>When a defence blocks an attack, the team gains 1 Evidence. Check Server Log costs 1 Evidence and privately checks whether another player has played a hostile card this cycle. At 5 Evidence, the Hacker's identity is revealed publicly.</p>
+                  <p>While DDoS is ongoing, the Network Lane is under attack and fewer submitted cards can resolve, so useful work may be delayed until Anti-DDoS Defence brings capacity back online. During that disruption, the Hacker's hostile Hacker card is processed immediately after any Rapid Incident Response, while their cover card remains mixed into the random queue. Zero-Day is a rare late-game attack that cannot be blocked by Lane defences.</p>
+                  <p>When a defence blocks an attack, the team gains 1 Evidence. Check Server Log costs 1 Evidence and privately checks whether another player appears to have taken a hostile action this cycle. Server-log checks and False Flag plays are private; they do not appear in the public incident report. At 5 Evidence, the Hacker's identity is revealed publicly.</p>
                   <p>Rapid Incident Response blocks one attack during the current turn only. It is discarded after use and never lingers into later turns.</p>
                 </RulesList>
               </RuleBlock>
@@ -97,11 +97,11 @@ export function GameInfoModal({ open, onClose }) {
 
               <RuleBlock title="Why Tasks Matter">
                 <p>Tasks are the last pieces of work needed to make the quantum AI defence ready. Some are small operational steps; others join multiple parts of the company together and are worth more progress.</p>
-                <p>Each task needs certain Lanes defended before it can be completed. Defending the wrong Lane may look responsible, but it will not finish the work QuantumNova actually needs.</p>
+                <p>Each task needs certain Lanes defended before it can be completed. Defending the wrong Lane may look responsible, but it will not finish the work QuantumNova actually needs. Because processing order is random after emergency responses, even honest plans can become risky when defences shift before a task resolves.</p>
               </RuleBlock>
 
               <RuleBlock title="DDoS and Zero-Day Pressure">
-                <p>A DDoS attack does not directly break the system's integrity. It floods the Network Lane with traffic, reducing processing capacity so fewer queued requests, defences, investigations, and tasks can resolve until the team mitigates it.</p>
+                <p>A DDoS attack does not directly break the system's integrity. It floods the Network Lane with traffic, reducing processing capacity so fewer queued requests, defences, investigations, and tasks can resolve until the team mitigates it. In that chaos, the Hacker's hostile operation gets priority, but their cover move is still lost in the random processing queue.</p>
                 <p>The Zero-Day Attack represents a vulnerability the defenders have not seen before. It is rare, late-game, and unblockable by normal Lane defences.</p>
               </RuleBlock>
 

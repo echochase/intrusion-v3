@@ -16,7 +16,7 @@ const THEME_OPTIONS = [
   {
     value: "simple",
     label: "Simple",
-    description: "Reduced glow and softer monochrome interface accents.",
+    description: "Reduced glow, softer monochrome accents.",
   },
 ];
 
@@ -29,12 +29,12 @@ const BACKGROUND_OPTIONS = [
   {
     value: "grand",
     label: "Grand",
-    description: "Uses the supplied grand background asset when available.",
+    description: "Use the Grand background option.",
   },
   {
     value: "pencil",
     label: "Pencil",
-    description: "Uses the supplied pencil background asset when available.",
+    description: "Uses the pencil background option.",
   },
 ];
 
@@ -115,7 +115,7 @@ export const Settings = ({
 
         <OptionGroup
           title="Background"
-          description="Choose the table background artwork. Images are cropped to fill the viewport instead of being stretched."
+          description="Choose the table background artwork. Images are cropped to fill the viewport instead of being stretched. All art is human-drawn."
           options={BACKGROUND_OPTIONS}
           value={background}
           onChange={setBackground}

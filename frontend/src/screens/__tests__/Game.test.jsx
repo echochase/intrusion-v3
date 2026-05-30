@@ -85,7 +85,7 @@ describe('Game screen socket interactions', () => {
     });
   });
 
-  it('submits defence slot choices in cardOptions', async () => {
+  it('submits defence cards without slot choices', async () => {
     const defence = card({
       id: 'defence-1',
       name: 'Employee Awareness',
@@ -97,14 +97,12 @@ describe('Game screen socket interactions', () => {
     renderGame({ socket, state: gameState({ cards: [defence] }) });
 
     fireEvent.click(await screen.findByTitle(/Employee Awareness/i));
-    fireEvent.change(await screen.findByLabelText(/defence slot/i), { target: { value: '2' } });
+    expect(screen.queryByLabelText(/defence slot/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /submit card/i }));
 
     expect(socket.lastEmit('submit-cards')?.args[0]).toMatchObject({
       cardIds: ['defence-1'],
-      cardOptions: {
-        'defence-1': { defenceSlotIndex: 2 },
-      },
+      cardOptions: {},
     });
   });
 

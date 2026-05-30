@@ -58,8 +58,8 @@ export const About = () => {
         <li>Security Engineers draw from the Security deck and choose one card to submit each turn.</li>
         <li>The Hacker secretly draws two cards from any mix of the Security and Hacker decks.</li>
         <li>Security Engineers submit one card or pass. The Hacker may submit up to two cards, with at most one Hacker card and one Security card.</li>
-        <li>The System resolves the queue and produces an incident report.</li>
-        <li>Defences are face-up, persistent, and limited to three active Lanes at a time.</li>
+        <li>Rapid Incident Response resolves first. Every other card resolves in a random order, with the incident report showing the true processing sequence.</li>
+        <li>Defences are face-up, persistent, and limited to three active slots. New defences join the newest/rightmost slot; if the queue is full, the oldest/leftmost defence is phased out.</li>
         <li>Tasks can only be completed when their required Lane or Lanes are defended. Some tasks need one Lane, others need multiple Lanes, and larger tasks can grant more than 1 Project Progress.</li>
       </ul>
 
@@ -72,18 +72,20 @@ export const About = () => {
       <p>
         DDoS works differently from direct integrity attacks. It floods the Network Lane with requests, reducing
         how many queued actions the system can process each turn until an Anti-DDoS countermeasure is deployed.
-        This makes DDoS feel less like one clean hit and more like the system being choked at the worst possible time.
+        During that disruption, the Hacker's hostile card cuts ahead of the random queue, while their cover card
+        remains mixed in with everyone else's actions. This makes DDoS feel less like one clean hit and more like
+        the system being choked at the worst possible time.
       </p>
       <p>
-        When something happens, the incident report explains the cause and effect in plain language. If an
-        attack is blocked, the game names the attack, the defence, and the Lane involved. That makes the
+        When something happens, the incident report explains the cause and effect in plain language and preserves the
+        order in which actions were processed. If an attack is blocked, the game names the attack, the defence, and the Lane involved. That makes the
         educational moment part of normal play rather than a separate lecture.
       </p>
 
       <h2>Social Deduction</h2>
       <p>
         The Hacker can perform legitimate-looking work to maintain cover. They may install real defences,
-        complete tasks once Lanes are defended, or draw from the Security deck when they need to look normal. Helpful behaviour is
+        complete tasks once Lanes are defended, or draw from the Security deck when they need to look normal. Because non-emergency cards resolve in random order, players cannot safely infer identity from timing alone. Helpful behaviour is
         evidence, but it is never proof.
       </p>
       <p>
