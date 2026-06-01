@@ -575,8 +575,8 @@ function IntroBriefingModal({ open, role, onClose, onSkipIntro }) {
       title: 'Hacker',
       body: (
         <>
-          <p>Infiltrate the system's defences and wreak havoc without exposing your identity.</p>
-          <p>Hackers cannot play attack cards during the first turn. Your goal is to reduce System Integrity to zero before QuantumNova finishes its defence system.</p>
+          <p>Infiltrate the system's defences and cause as much damage as possible without exposing your identity.</p>
+          <p>Hackers cannot play attack cards during the first turn. Your goal is to reduce System Integrity to zero.</p>
         </>
       ),
     },
@@ -585,9 +585,19 @@ function IntroBriefingModal({ open, role, onClose, onSkipIntro }) {
       title: 'Security Engineer',
       body: (
         <>
-          <p>Work together to defend QuantumNova's system against incoming attacks. But not everyone at the table is trustworthy.</p>
-          <p>Win by voting out the Hacker, or by completing enough project progress to deploy the quantum computer security system: 12 progress in a 4-player game, or 15 in a 5-player game.</p>
-          <p>Do this before System Integrity reaches zero.</p>
+          <p>Work together to defend QuantumNova's system against potential attacks. But not everyone at the table is trustworthy.</p>
+          <p>Your goal is to either identify the Hacker and vote them out, or complete the project tasks before System Integrity reaches zero.</p>
+          <p>Security needs 12 Project Progress in a 4-player game, or 15 Project Progress in a 5-player game.</p>
+        </>
+      ),
+    },
+    {
+      eyebrow: 'security notice',
+      title: 'One formal accusation',
+      body: (
+        <>
+          <p>After cycle 3, the Security Engineers get one formal chance to vote out the player they believe is the Hacker.</p>
+          <p>If the vote is correct, QuantumNova survives the insider threat. If it is wrong, the vote is spent.</p>
         </>
       ),
     },
@@ -633,7 +643,7 @@ function IntroBriefingModal({ open, role, onClose, onSkipIntro }) {
 
           <div className="intro-briefing-actions">
             <button type="button" className="intro-skip-button" onClick={onSkipIntro}>Skip intro</button>
-            <div className={`intro-briefing-nav-actions ${page === 0 ? 'single-action' : 'paired-actions'}`}>
+            <div className={`intro-briefing-nav-actions ${page === 0 ? 'first-page' : ''}`}>
               {page > 0 && <button type="button" onClick={() => setPage((value) => Math.max(0, value - 1))}>Back</button>}
               <button type="button" onClick={() => (lastPage ? onClose() : setPage((value) => value + 1))}>
                 {lastPage ? 'Enter Simulation' : 'Next'}
@@ -865,13 +875,27 @@ function IntegrityLoss({ page }) {
   const delta = page?.integrityDelta ?? 0;
   if (delta <= 0) return null;
 
+  const integrityMax = Math.max(4, page?.integrityMax ?? 0, page?.maxIntegrity ?? 0, page?.integrityBefore ?? 0, page?.integrityAfter ?? 0, 1);
+  const beforePercent = Math.min(100, Math.max(0, ((page?.integrityBefore ?? integrityMax) / integrityMax) * 100));
+  const afterPercent = Math.min(100, Math.max(0, ((page?.integrityAfter ?? 0) / integrityMax) * 100));
+  const barKey = `${page?.id || 'integrity'}-${page?.integrityBefore}-${page?.integrityAfter}`;
+
   return (
     <div className="integrity-loss-card">
       <span>System Integrity</span>
       <strong>
         {page.integrityBefore} <span>-{delta}</span> {page.integrityAfter}
       </strong>
-      <div className="integrity-loss-bar"><i /></div>
+      <div
+        key={barKey}
+        className="integrity-loss-bar"
+        style={{
+          '--integrity-from': `${beforePercent}%`,
+          '--integrity-to': `${afterPercent}%`,
+        }}
+      >
+        <i />
+      </div>
     </div>
   );
 }
@@ -1693,7 +1717,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
               <TurnTimer gameState={gameState} />
               {canReadyDiscussion && (
                 <div className="mobile-ready-inline">
-                  <button type="button" onClick={markTurnReady}><span aria-hidden="true">×</span> I'm Ready</button>
+                  <button type="button" onClick={markTurnReady}>I'm Ready</button>
                 </div>
               )}
               {isDiscussionPhase && gameState?.yourDiscussionReady && (
@@ -1746,7 +1770,6 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
 
           {task ? (
             <div className={`task-card-row task-card-row-detailed ${taskDefended ? "task-ready" : "task-blocked"}`}>
-              {!taskDefended && <div className="mobile-task-warning">Lane undefended</div>}
               <CardTile
                 card={task}
                 compact

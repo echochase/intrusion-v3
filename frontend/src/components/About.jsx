@@ -100,12 +100,8 @@ export const About = () => {
         attacks carefully. The result is still recognisably a cybersecurity game, but it should be easier to
         learn, teach, and actually finish.
       </p>
-      <p>
-        The project uses AI-generated art decoratively for card visuals. The rules, implementation, and
-        game design remain the core project work.
-      </p>
-
       <button className="return-to-menu" onClick={() => navigate("/")}>← Back to Base</button>
+      <button className="about-mobile-back-button" onClick={() => navigate(-1)}>← Back</button>
     </div>
   );
 };

@@ -115,7 +115,7 @@ export const Settings = ({
 
         <OptionGroup
           title="Background"
-          description="Choose the table background artwork. Images are cropped to fill the viewport instead of being stretched. All art is human-drawn."
+          description="Choose the table background image. Images are cropped to fill the viewport instead of being stretched."
           options={BACKGROUND_OPTIONS}
           value={background}
           onChange={setBackground}

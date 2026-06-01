@@ -27,7 +27,7 @@ export function GameInfoModal({ open, onClose }) {
               <span className="header-eyebrow">internal briefing</span>
               <h2>{tab === 'rules' ? 'Rules of Intrusion' : 'Field Notes and Lore'}</h2>
             </div>
-            <button type="button" onClick={onClose}>Close</button>
+            <button type="button" className="game-info-close-button" onClick={onClose}>Close</button>
           </div>
 
           <div className="game-info-tabs" role="tablist" aria-label="Rules and lore sections">
@@ -111,6 +111,16 @@ export function GameInfoModal({ open, onClose }) {
             </div>
           )}
         </div>
+        <button
+          type="button"
+          className="game-info-mobile-back"
+          onClick={(event) => {
+            event.stopPropagation();
+            onClose();
+          }}
+        >
+          ← Back
+        </button>
       </div>
     </Modal>
   );
