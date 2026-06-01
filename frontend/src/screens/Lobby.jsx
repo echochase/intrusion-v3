@@ -273,9 +273,9 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
           )}
 
           {/* Action buttons */}
-          <Stack direction="row" spacing={2} justifyContent="center" mt={4}>
+          <Stack className="lobby-action-row" direction="row" spacing={2} justifyContent="center" mt={4}>
             {isLeader && !isSpectator && connectedPlayerCount < 5 && (
-              <Button variant="outlined" onClick={addBot} sx={{
+              <Button className="lobby-action-button" variant="outlined" onClick={addBot} sx={{
                 ...cyberBase, px:3, py:1.1,
                 border:"1px solid rgba(0,212,255,0.5)", color:"#00d4ff", fontWeight:700,
                 "&:hover":{ border:"1px solid #00d4ff", background:"rgba(0,212,255,0.08)", boxShadow:"0 0 14px rgba(0,212,255,0.2)" },
@@ -284,22 +284,22 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
               </Button>
             )}
             {isLeader && !isSpectator ? (
-              <Button variant="outlined" onClick={startGame} sx={{
+              <Button className="lobby-action-button" variant="outlined" onClick={startGame} sx={{
                 ...cyberBase, px:3, py:1.1,
                 border:"1px solid rgba(0,255,136,0.6)", color:"#00ff88", fontWeight:700,
                 "&:hover":{ border:"1px solid #00ff88", background:"rgba(0,255,136,0.1)", boxShadow:"0 0 18px rgba(0,255,136,0.3)", color:"#e8fff2" },
               }}>
-                Start Simulation
+                <span className="desktop-label">Start Simulation</span><span className="mobile-label">Start</span>
               </Button>
             ) : isSpectator ? (
-              <Button variant="outlined" disabled sx={{
+              <Button className="lobby-action-button" variant="outlined" disabled sx={{
                 ...cyberBase, px:3, py:1.1,
                 border:"1px solid rgba(0,212,255,0.3)", color:"#00d4ff",
               }}>
                 Observing
               </Button>
             ) : ready ? (
-              <Button variant="outlined" onClick={signalUnready} sx={{
+              <Button className="lobby-action-button" variant="outlined" onClick={signalUnready} sx={{
                 ...cyberBase, px:3, py:1.1,
                 border:"1px solid rgba(255,170,0,0.5)", color:"#ffaa00",
                 "&:hover":{ border:"1px solid #ffaa00", background:"rgba(255,170,0,0.08)" },
@@ -307,7 +307,7 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
                 Not Ready
               </Button>
             ) : (
-              <Button variant="outlined" onClick={signalReady} sx={{
+              <Button className="lobby-action-button" variant="outlined" onClick={signalReady} sx={{
                 ...cyberBase, px:3, py:1.1,
                 border:"1px solid rgba(0,212,255,0.5)", color:"#00d4ff",
                 "&:hover":{ border:"1px solid #00d4ff", background:"rgba(0,212,255,0.08)", boxShadow:"0 0 14px rgba(0,212,255,0.2)" },
@@ -315,12 +315,12 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
                 Ready
               </Button>
             )}
-            <Button variant="outlined" onClick={leaveLobby} sx={{
+            <Button className="lobby-action-button lobby-exit-button" variant="outlined" onClick={leaveLobby} sx={{
               ...cyberBase, px:3, py:1.1,
               border:"1px solid rgba(255,51,85,0.4)", color:"#ff3355",
               "&:hover":{ border:"1px solid #ff3355", background:"rgba(255,51,85,0.08)", boxShadow:"0 0 12px rgba(255,51,85,0.15)" },
             }}>
-              Exit Room
+              <span className="desktop-label">Exit Room</span><span className="mobile-label">Exit</span>
             </Button>
           </Stack>
         </Box>

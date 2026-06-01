@@ -209,3 +209,28 @@
     width: 100%;
   }
 }
+
+
+/* Alert modal overflow safety */
+.cyber-alert-paper {
+  width: min(480px, calc(100vw - 1rem));
+  max-height: calc(100dvh - 1rem);
+}
+
+.cyber-alert-actions {
+  gap: 0.5rem;
+}
+
+.cyber-alert-actions button {
+  min-height: 38px;
+  min-width: min(140px, 100%);
+  padding: 0.45rem 0.75rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .cyber-alert-actions button {
+    min-width: 0;
+  }
+}

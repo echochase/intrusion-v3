@@ -79,7 +79,7 @@ export function GameInfoModal({ open, onClose }) {
                 <RulesList>
                   <p>Security Engineers may propose the formal vote from cycle 3 onward. A 4-player game needs 2 players ready to proceed; a 5-player game needs 3. If the table delays, the vote option remains available. Once the vote begins, the Hacker may vote, but only engineer votes count when deciding who is removed.</p>
                   <p>If the engineers remove the Hacker, they win. If they remove the wrong player, that player becomes a spectator and the formal vote is spent.</p>
-                  <p>The Hacker wins if Integrity reaches zero. The engineers win if the project reaches its required progress first.</p>
+                  <p>The Hacker wins if Integrity reaches zero. The engineers win if the project reaches its required progress first: 12 progress in a 4-player game or 15 progress in a 5-player game.</p>
                 </RulesList>
               </RuleBlock>
             </div>

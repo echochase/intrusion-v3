@@ -13,6 +13,7 @@ const { createBotLobbyPlayer } = require('./bots/botLogic');
 const DISCUSSION_DURATION_MS = Game.DISCUSSION_DURATION_MS || 120000;
 const PLAY_DURATION_MS = Game.PLAY_DURATION_MS || 30000;
 const DISCARD_DURATION_MS = Game.DISCARD_DURATION_MS || 10000;
+const EMPTY_ROOM_CLEANUP_DELAY_MS = 15000;
 
 // ── Lobby helpers ────────────────────────────────────────────────────────────
 
@@ -54,6 +55,56 @@ function socketIsLive(io, socketId) {
   return Boolean(socketId && io.sockets.sockets.get(socketId));
 }
 
+function takeOverSocket(io, socketId) {
+  const oldSocket = io.sockets.sockets.get(socketId);
+  if (!oldSocket) return;
+  oldSocket.emit('session-replaced');
+  oldSocket.disconnect(true);
+}
+
+function humanConnectedCount(roomData) {
+  const players = (roomData?.players || []).filter(p => !p.isBot && p.connected !== false).length;
+  const spectators = (roomData?.spectators || []).filter(p => p.connected !== false).length;
+  return players + spectators;
+}
+
+function cancelEmptyRoomCleanup(roomData) {
+  if (roomData?.emptyRoomCleanupTimer) clearTimeout(roomData.emptyRoomCleanupTimer);
+  if (roomData) roomData.emptyRoomCleanupTimer = null;
+}
+
+function scheduleEmptyRoomCleanup(io, room) {
+  const roomData = rooms[room];
+  if (!roomData) return;
+  if (humanConnectedCount(roomData) > 0) {
+    cancelEmptyRoomCleanup(roomData);
+    return;
+  }
+
+  if (!roomData.started && (roomData.players || []).filter(p => !p.isBot).length === 0 && (roomData.spectators || []).length === 0) {
+    _deleteRoom(room);
+    return;
+  }
+
+  if (roomData.emptyRoomCleanupTimer) return;
+  roomData.emptyRoomCleanupTimer = setTimeout(() => {
+    const latest = rooms[room];
+    if (!latest || humanConnectedCount(latest) > 0) return;
+    _deleteRoom(room);
+  }, EMPTY_ROOM_CLEANUP_DELAY_MS);
+  if (typeof roomData.emptyRoomCleanupTimer.unref === 'function') roomData.emptyRoomCleanupTimer.unref();
+}
+
+function _deleteRoom(room) {
+  const roomData = rooms[room];
+  if (!roomData) return;
+  if (roomData.turnTimer) clearTimeout(roomData.turnTimer);
+  if (roomData.emptyRoomCleanupTimer) clearTimeout(roomData.emptyRoomCleanupTimer);
+  BotRuntime.clear(roomData);
+  delete rooms[room];
+  console.log(`Room ${room} deleted after becoming empty`);
+}
+
 function emitLobbyUpdate(io, room) {
   const roomData = rooms[room];
   if (!roomData) return;
@@ -84,8 +135,12 @@ function reconnectGameParticipant(io, roomData, name, socket, sessionToken = nul
 
   const lobbyEntry = roomData.players.find(p => p.name === name);
   if (lobbyEntry?.sessionToken && !tokenMatches(lobbyEntry, sessionToken)) return { error: 'duplicate' };
-  if (player.socketId && player.socketId !== socket.id && socketIsLive(io, player.socketId)) return { error: 'duplicate' };
+  if (player.socketId && player.socketId !== socket.id && socketIsLive(io, player.socketId)) {
+    if (!tokenMatches(lobbyEntry, sessionToken)) return { error: 'duplicate' };
+    takeOverSocket(io, player.socketId);
+  }
 
+  cancelEmptyRoomCleanup(roomData);
   player.socketId = socket.id;
   player.sessionToken = lobbyEntry?.sessionToken || sessionToken || player.sessionToken;
   if (lobbyEntry) {
@@ -101,13 +156,17 @@ function upsertSpectator(io, roomData, name, socket, sessionToken = null) {
 
   if (existing) {
     if (!tokenMatches(existing, sessionToken)) return { error: 'duplicate' };
-    if (existing.socketId && existing.socketId !== socket.id && socketIsLive(io, existing.socketId)) return { error: 'duplicate' };
+    if (existing.socketId && existing.socketId !== socket.id && socketIsLive(io, existing.socketId)) {
+      takeOverSocket(io, existing.socketId);
+    }
+    cancelEmptyRoomCleanup(roomData);
     existing.socketId = socket.id;
     existing.connected = true;
     return { spectator: existing, reconnected: true };
   }
 
   const spectator = createSpectator(name, socket.id, sessionToken || createParticipantToken());
+  cancelEmptyRoomCleanup(roomData);
   roomData.spectators.push(spectator);
   return { spectator, reconnected: false };
 }
@@ -140,6 +199,7 @@ module.exports = function(io) {
         turnTimer: null,
         turnTimerKind: null,
         botTimers: new Set(),
+        emptyRoomCleanupTimer: null,
       };
       socket.join(room);
       socket.emit('room-created', room, { participantToken: creator.sessionToken });
@@ -208,7 +268,10 @@ module.exports = function(io) {
 
       if (existingLobbyPlayer) {
         if (!tokenMatches(existingLobbyPlayer, sessionToken)) return socket.emit('duplicate-name-error');
-        if (existingLobbyPlayer.socketId && existingLobbyPlayer.socketId !== socket.id && socketIsLive(io, existingLobbyPlayer.socketId)) return socket.emit('duplicate-name-error');
+        if (existingLobbyPlayer.socketId && existingLobbyPlayer.socketId !== socket.id && socketIsLive(io, existingLobbyPlayer.socketId)) {
+          takeOverSocket(io, existingLobbyPlayer.socketId);
+        }
+        cancelEmptyRoomCleanup(roomData);
         existingLobbyPlayer.socketId = socket.id;
         existingLobbyPlayer.connected = true;
         socket.join(room);
@@ -222,6 +285,7 @@ module.exports = function(io) {
       if (connectedPlayerCount >= 5) return socket.emit('full-error');
 
       const newPlayer = createLobbyPlayer(playerName, socket.id);
+      cancelEmptyRoomCleanup(roomData);
       roomData.players.push(newPlayer);
       socket.join(room);
       socket.emit('join-success', room, { started: false, spectator: false, participantToken: newPlayer.sessionToken });
@@ -268,8 +332,9 @@ module.exports = function(io) {
       if (lobbyPlayer) {
         if (!tokenMatches(lobbyPlayer, resumeToken)) return socket.emit('resume-failed', 'duplicate');
         if (lobbyPlayer.socketId && lobbyPlayer.socketId !== socket.id && socketIsLive(io, lobbyPlayer.socketId)) {
-          return socket.emit('resume-failed', 'duplicate');
+          takeOverSocket(io, lobbyPlayer.socketId);
         }
+        cancelEmptyRoomCleanup(roomData);
         lobbyPlayer.socketId = socket.id;
         lobbyPlayer.connected = true;
         socket.join(room);
@@ -296,6 +361,7 @@ module.exports = function(io) {
       if (!roomData || name !== roomData.leader || roomData.started) return socket.emit('non-existent-error');
       roomData.players = roomData.players.filter(p => p.name !== playerName);
       emitLobbyUpdate(io, room);
+      scheduleEmptyRoomCleanup(io, room);
     });
 
     socket.on('add-bot', (room, name) => {
@@ -359,6 +425,7 @@ module.exports = function(io) {
         }
         socket.leave(room);
         emitLobbyUpdate(io, room);
+        scheduleEmptyRoomCleanup(io, room);
         return;
       }
 
@@ -376,10 +443,12 @@ module.exports = function(io) {
         if (roomData.leader === removed.name && roomData.players.length > 0) {
           roomData.leader = roomData.players[0].name;
         }
+        scheduleEmptyRoomCleanup(io, room);
       }
 
       socket.leave(room);
       emitLobbyUpdate(io, room);
+      scheduleEmptyRoomCleanup(io, room);
     });
 
     socket.on('return-to-lobby', ({ room, playerName } = {}) => {
@@ -649,6 +718,7 @@ module.exports = function(io) {
 
         if (touched) {
           emitLobbyUpdate(io, roomId);
+          scheduleEmptyRoomCleanup(io, roomId);
           return;
         }
       }

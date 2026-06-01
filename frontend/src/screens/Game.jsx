@@ -422,6 +422,22 @@ function PlayerProgressChips({ player }) {
   );
 }
 
+function mobileDefenceName(name = "") {
+  const compact = compactName(name);
+  const aliases = {
+    antiddosdefence: "Anti-DDoS",
+    twofactorauthentication: "2FA",
+    employeeawareness: "Awareness",
+    inputsanitisation: "Input Sanit.",
+    securitydetail: "Security",
+    rapidincidentresponse: "Rapid IR",
+    checkserverlog: "Server Log",
+    forensicanalysis: "Forensics",
+    insidersabotage: "Sabotage",
+  };
+  return aliases[compact] || name;
+}
+
 function DefenceZone({ slots = [], onInspect }) {
   const normalisedSlots = [...slots];
   while (normalisedSlots.length < 3) {
@@ -440,7 +456,7 @@ function DefenceZone({ slots = [], onInspect }) {
               onClick={() => onInspect?.(slot.card)}
             >
               <span className="defence-slot-label">{slot.card.name === 'Insider Sabotage' || slot.card.category === 'Sabotage' ? 'SABOTAGED' : 'DEFENDED'}</span>
-              <strong>{slot.card.name}</strong>
+              <strong><span className="defence-name-full">{slot.card.name}</span><span className="defence-name-mobile">{mobileDefenceName(slot.card.name)}</span></strong>
             </button>
           );
         }
@@ -449,7 +465,7 @@ function DefenceZone({ slots = [], onInspect }) {
           return (
             <div key={`hidden-${index}`} className="defence-slot hidden-card text-only">
               <span className="defence-slot-label">DEFENCE</span>
-              <strong>Face Down</strong>
+              <strong><span className="defence-name-full">Face Down</span><span className="defence-name-mobile">Hidden</span></strong>
             </div>
           );
         }
@@ -457,7 +473,7 @@ function DefenceZone({ slots = [], onInspect }) {
         return (
           <div key={`empty-${index}`} className="defence-slot empty text-only">
             <span className="defence-slot-label">OPEN</span>
-            <strong>Empty Slot</strong>
+            <strong><span className="defence-name-full">Empty Slot</span><span className="defence-name-mobile">Empty</span></strong>
           </div>
         );
       })}
@@ -482,8 +498,11 @@ function LaneBoard({ lanes = [], onInspect }) {
           key={lane.lane || lane.label}
           type="button"
           className={`lane-row ${lane.status === 'defended' ? 'defended' : 'open'} ${lane.ddosActive ? 'ddos-active' : ''}`}
+          data-lane-name={lane.label}
+          data-lane-status={lane.ddosActive ? 'UNDER ATTACK' : lane.status === 'defended' ? 'DEFENDED' : 'OPEN'}
           onClick={() => lane.defence && onInspect?.(lane.defence)}
         >
+          <span className="lane-initial" aria-hidden="true">{(lane.label || '?').charAt(0)}</span>
           <span className="lane-name">{lane.label}</span>
           <strong>{lane.ddosActive ? 'UNDER ATTACK' : lane.status === 'defended' ? 'DEFENDED' : 'OPEN'}</strong>
           <small>{lane.defence?.name || lane.expectedDefence}</small>
@@ -500,7 +519,6 @@ function HackerDrawPanel({ you, onChoose }) {
     <div className="hacker-draw-panel embedded-draw-menu">
       <div className="panel-heading compact-heading">
         <span>// private draw</span>
-        <strong>choose 2</strong>
       </div>
       <div className="hacker-draw-options compact-draw-options">
         <button type="button" onClick={() => onChoose({ security: 2, hacker: 0 })}>2 Security</button>
@@ -1220,6 +1238,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
   const ddosOngoing = Boolean((system.lanes || []).some((lane) => lane.ddosActive));
   const tasksCompleted = system.numTasksCompleted ?? Math.max(0, (system.numTasksRequired ?? 0) - (system.numTasksRemaining ?? 0));
   const tasksRequired = system.numTasksRequired ?? "?";
+  const taskDefended = isTaskLaneDefended(system, task);
   const maxSubmitCards = maxSubmitCardsFor(you);
   const voteProposal = gameState?.voteProposal ?? null;
   useEffect(() => {
@@ -1603,7 +1622,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
     return (
       <main className="game-page center">
         <div className="game-loading">
-          <h1>Refreshhronising</h1>
+          <h1>Loading...</h1>
           <p>Requesting private session state...</p>
           <button type="button" onClick={requestRefresh}>Retry</button>
         </div>
@@ -1672,6 +1691,14 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
           {!isEnded && gameState?.phase === "playing" && (
             <div className="identity-timer-slot">
               <TurnTimer gameState={gameState} />
+              {canReadyDiscussion && (
+                <div className="mobile-ready-inline">
+                  <button type="button" onClick={markTurnReady}>I'm Ready</button>
+                </div>
+              )}
+              {isDiscussionPhase && gameState?.yourDiscussionReady && (
+                <div className="mobile-ready-inline ready">Waiting for all players or the timer.</div>
+              )}
             </div>
           )}
         </div>
@@ -1708,23 +1735,24 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
               </button>
               <button
                 type="button"
-                className={task && !isTaskLaneDefended(system, task) ? "task-unavailable-button" : ""}
+                className={task && !taskDefended ? "task-unavailable-button" : ""}
                 onClick={() => task && stageCard(task.id)}
                 disabled={!canAct || !task}
               >
-                {!task ? "No Task" : !isTaskLaneDefended(system, task) ? "Lane Undefended" : stagedIds.includes(task?.id) ? "Unqueue Task" : "Queue Task"}
+                {!task ? "No Task" : !taskDefended ? "Lane Undefended" : stagedIds.includes(task?.id) ? "Unqueue Task" : "Queue Task"}
               </button>
             </div>
           </div>
 
           {task ? (
-            <div className="task-card-row task-card-row-detailed">
+            <div className={`task-card-row task-card-row-detailed ${taskDefended ? "task-ready" : "task-blocked"}`}>
+              {!taskDefended && <div className="mobile-task-warning">Lane undefended</div>}
               <CardTile
                 card={task}
                 compact
                 showDetails={false}
                 selected={stagedIds.includes(task.id)}
-                draggable={canAct && !mustDiscard && !stagedIds.includes(task.id) && isTaskLaneDefended(system, task)}
+                draggable={canAct && !mustDiscard && !stagedIds.includes(task.id) && taskDefended}
                 disabled={!canAct || mustDiscard}
                 onClick={() => stageCard(task.id)}
                 onInspect={setPreviewCard}
@@ -1753,7 +1781,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
           }}
         >
           <div className="command-panel-grid">
-            <div className="queue-section">
+            <div className={`queue-section ${you?.awaitingDrawChoice ? "draw-choice-pending" : ""}`}>
               <div className="panel-heading compact-heading">
                 <span>// system queue</span>
                 <strong>{visibleQueueCards.length}/{maxSubmitCards}</strong>
@@ -1784,6 +1812,10 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
                   ))}
                 </div>
               )}
+
+              <div className="mobile-draw-queue">
+                <HackerDrawPanel you={you} onChoose={chooseHackerDraw} />
+              </div>
 
               {!hasSubmitted && stagedCards.filter(usesPlayerTarget).map((card) => (
                 <div className="target-selector-row" key={`target-${card.id}`}>

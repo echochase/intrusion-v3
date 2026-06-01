@@ -236,3 +236,60 @@
     width: 100%;
   }
 }
+
+
+/* Settings overflow safety */
+.settings-wrapper {
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  align-items: flex-start;
+}
+
+.settings-panel {
+  max-width: min(620px, calc(100vw - 1.5rem));
+  max-height: none;
+  min-width: 0;
+  margin-block: auto;
+}
+
+.settings-section,
+.settings-option-grid,
+.settings-option {
+  min-width: 0;
+}
+
+.settings-title,
+.settings-section h2,
+.settings-option span,
+.settings-option em {
+  overflow-wrap: anywhere;
+}
+
+.settings-option,
+.settings-toggle,
+.settings-panel .back-button {
+  min-height: 38px;
+}
+
+@media only screen and (max-width: 700px) {
+  .settings-wrapper {
+    padding: 0.75rem;
+  }
+
+  .settings-panel {
+    width: 100%;
+    padding: 1.15rem;
+    gap: 1rem;
+  }
+
+  .settings-title {
+    font-size: 1.1rem;
+    letter-spacing: 0.12em;
+  }
+
+  .settings-option {
+    min-height: 0;
+    padding: 0.7rem;
+  }
+}

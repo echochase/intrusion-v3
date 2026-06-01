@@ -130,7 +130,7 @@ export const HomePage = ({ socket, name, room, setRoom }) => {
       minHeight="100vh"
       px={2}
       className="home-page themed-screen"
-      sx={{ background: "var(--backdrop-background, var(--bg))", position: "relative", overflow: "hidden" }}
+      sx={{ background: "var(--backdrop-background, var(--bg))", position: "relative", overflowX: "hidden", overflowY: "auto" }}
     >
       {/* Background grid lines */}
       <Box sx={{

@@ -2863,3 +2863,594 @@ button.defence-slot.text-only {
   background: rgba(255, 170, 0, 0.1);
   box-shadow: 0 0 18px rgba(255, 170, 0, 0.18);
 }
+
+/* ── Mobile-only compact game UI refinements ───────────────────────────── */
+.mobile-label,
+.defence-name-mobile,
+.mobile-ready-inline,
+.mobile-task-warning,
+.mobile-draw-queue,
+.lane-initial {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .desktop-label { display: none !important; }
+  .mobile-label { display: inline !important; }
+
+  .home-brand-stack,
+  .home-title,
+  .home-page .home-menu-panel {
+    text-align: center;
+    align-items: center;
+  }
+
+  .lobby-panel {
+    text-align: center;
+  }
+
+  .lobby-panel .MuiStack-root:last-of-type {
+    gap: 0.55rem;
+  }
+
+  .lobby-panel .MuiButton-root {
+    min-width: 0;
+    white-space: nowrap;
+    font-size: 0.62rem;
+    padding-inline: 0.7rem;
+    letter-spacing: 0.07em;
+  }
+
+  .game-page {
+    padding: 0.45rem;
+    overflow-x: hidden;
+  }
+
+  .game-header {
+    position: relative;
+    padding: 0.65rem 3.1rem 0.65rem 0.65rem;
+    gap: 0.55rem;
+  }
+
+  .game-header > div:first-child {
+    display: none;
+  }
+
+  .game-header-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    width: 100%;
+  }
+
+  .game-header-actions button {
+    min-height: 38px;
+    padding: 0.42rem 0.35rem;
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+  }
+
+  .game-header-actions .red {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.55rem;
+    width: 2rem;
+    min-width: 2rem;
+    height: 2rem;
+    min-height: 2rem;
+    padding: 0;
+    font-size: 0;
+    border-radius: 999px;
+    clip-path: none;
+  }
+
+  .game-header-actions .red::before {
+    content: "×";
+    font-size: 1.25rem;
+    line-height: 1;
+    font-family: Arial, sans-serif;
+  }
+
+  .game-dashboard,
+  .game-table {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+    margin-top: 0.55rem;
+  }
+
+  .identity-panel {
+    padding: 0.55rem;
+  }
+
+  .identity-panel .panel-heading,
+  .identity-panel > h2,
+  .identity-panel > .skill-grid {
+    display: none;
+  }
+
+  .identity-timer-slot {
+    margin-top: 0;
+  }
+
+  .identity-timer-slot .turn-timer {
+    align-items: center;
+    flex-direction: row;
+    gap: 0.65rem;
+    padding: 0.55rem;
+  }
+
+  .identity-timer-slot .turn-timer-ring {
+    width: 46px;
+    height: 46px;
+  }
+
+  .identity-timer-slot .turn-timer-ring span {
+    font-size: 0.98rem;
+  }
+
+  .identity-timer-slot .turn-timer-copy strong {
+    font-size: 0.72rem;
+  }
+
+  .identity-timer-slot .turn-timer-copy span {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  .discussion-ready-panel {
+    display: none;
+  }
+
+  .mobile-ready-inline {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.55rem;
+  }
+
+  .mobile-ready-inline button {
+    min-height: 36px;
+    padding: 0.38rem 0.8rem;
+    font-size: 0.62rem;
+  }
+
+  .mobile-ready-inline.ready {
+    display: block;
+    color: var(--text-muted);
+    text-align: center;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+  }
+
+  .system-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .system-grid div {
+    padding: 0.42rem;
+  }
+
+  .system-grid span {
+    font-size: 0.52rem;
+    letter-spacing: 0.08em;
+  }
+
+  .system-grid strong {
+    font-size: 0.8rem;
+  }
+
+  .zone-heading {
+    margin: 0.52rem 0 0.28rem;
+    font-size: 0.52rem;
+  }
+
+  .lane-board {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.28rem;
+    margin-bottom: 0.45rem;
+  }
+
+  .lane-row {
+    min-height: 40px;
+    padding: 0.35rem 0.2rem;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    position: relative;
+  }
+
+  .lane-row .lane-name,
+  .lane-row strong,
+  .lane-row small {
+    display: none;
+  }
+
+  .lane-row .lane-initial {
+    display: inline-grid;
+    place-items: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    color: var(--text-bright);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 800;
+  }
+
+  .lane-row:focus::after,
+  .lane-row:active::after {
+    content: attr(data-lane-name) " — " attr(data-lane-status);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.35rem);
+    z-index: 30;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(72vw, 220px);
+    padding: 0.38rem 0.5rem;
+    border: 1px solid var(--border-bright);
+    background: rgba(2, 8, 12, 0.96);
+    color: var(--text-bright);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    line-height: 1.2;
+    box-shadow: 0 0 18px var(--green-glow);
+    pointer-events: none;
+  }
+
+  .defence-zone {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.28rem;
+  }
+
+  .defence-slot.text-only {
+    min-height: 36px;
+    padding: 0.32rem 0.28rem;
+    text-align: center;
+    align-items: center;
+  }
+
+  .defence-slot.text-only .defence-slot-label {
+    font-size: 0.42rem;
+    letter-spacing: 0.08em;
+  }
+
+  .defence-slot.text-only strong {
+    max-width: 100%;
+    font-size: 0.52rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .defence-name-full { display: none; }
+  .defence-name-mobile { display: inline; }
+
+  .task-card-row-detailed {
+    position: relative;
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: 0.5rem;
+    padding-top: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+  }
+
+  .task-card-row-detailed.task-blocked {
+    background: rgba(255, 51, 85, 0.12);
+    border-color: rgba(255, 51, 85, 0.45);
+    padding: 1.95rem 0.45rem 0.45rem;
+  }
+
+  .task-card-row-detailed.task-ready {
+    background: rgba(0, 255, 136, 0.08);
+    border-color: rgba(0, 255, 136, 0.36);
+    box-shadow: 0 0 18px rgba(0, 255, 136, 0.14);
+    padding: 0.45rem;
+  }
+
+  .mobile-task-warning {
+    display: block;
+    position: absolute;
+    top: 0.38rem;
+    left: 0.45rem;
+    right: 0.45rem;
+    padding: 0.28rem 0.4rem;
+    border: 1px solid rgba(255, 51, 85, 0.58);
+    border-radius: 5px;
+    background: rgba(255, 51, 85, 0.22);
+    color: #ff8fa1;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .task-card-row-detailed .play-card.compact {
+    width: 74px;
+    flex-basis: 74px;
+  }
+
+  .task-detail-card {
+    padding: 0.48rem;
+    gap: 0.38rem;
+    background: rgba(0, 0, 0, 0.18);
+  }
+
+  .task-blocked .task-detail-card {
+    border-color: rgba(255, 51, 85, 0.38);
+    background: rgba(255, 51, 85, 0.08);
+  }
+
+  .task-ready .task-detail-card {
+    border-color: rgba(0, 255, 136, 0.36);
+  }
+
+  .task-title-row h3 {
+    font-size: 0.76rem;
+  }
+
+  .task-description,
+  .task-effect-list {
+    font-size: 0.66rem;
+    line-height: 1.23;
+  }
+
+  .command-panel-grid {
+    grid-template-rows: auto auto;
+    gap: 0.5rem;
+  }
+
+  .mobile-draw-queue {
+    display: block;
+  }
+
+  .mobile-draw-queue .embedded-draw-menu {
+    margin: 0.45rem 0 0;
+    padding: 0.45rem;
+  }
+
+  .mobile-draw-queue .compact-draw-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .mobile-draw-queue .compact-draw-options button {
+    min-height: 34px;
+    padding: 0.28rem 0.18rem;
+    font-size: 0.54rem;
+    letter-spacing: 0.02em;
+  }
+
+  .hand-section .embedded-draw-menu {
+    display: none;
+  }
+
+  .hand-capacity-shell {
+    padding: 0.45rem;
+  }
+
+  .hand-strip.command-hand-strip,
+  .hand-strip {
+    min-height: 154px;
+    height: 154px;
+    gap: 0.45rem;
+    padding: 0.12rem 0.05rem 0.45rem;
+  }
+
+  .command-hand-strip .play-card,
+  .play-card {
+    flex-basis: 108px;
+    max-width: 108px;
+  }
+
+  .play-card-meta {
+    padding: 0.58rem 0.38rem 0.38rem;
+  }
+
+  .play-card-meta span {
+    font-size: 0.46rem;
+  }
+
+  .players-panel .agent-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    max-height: none;
+  }
+
+  .players-panel .panel-heading {
+    margin-bottom: 0.45rem;
+  }
+
+  .agent-row {
+    min-width: 0;
+    padding: 0.42rem;
+  }
+
+  .agent-row-main {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.24rem;
+  }
+
+  .agent-row-main strong {
+    font-size: 0.58rem;
+    text-align: left;
+  }
+
+  .agent-name-line > span {
+    max-width: 100%;
+    font-size: 0.7rem;
+  }
+
+  .intro-briefing-shell {
+    width: 100vw;
+    max-width: 100vw;
+    padding: 0.65rem;
+    overflow-x: hidden;
+  }
+
+  .intro-briefing-panel {
+    width: min(100%, calc(100vw - 1.3rem));
+    max-width: calc(100vw - 1.3rem);
+    padding: 1rem;
+    gap: 0.85rem;
+    overflow-x: hidden;
+  }
+
+  .intro-briefing-copy h1 {
+    font-size: clamp(1.2rem, 8vw, 1.75rem);
+    overflow-wrap: anywhere;
+  }
+
+  .intro-briefing-copy p {
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+
+  .intro-briefing-actions {
+    gap: 0.55rem;
+  }
+
+  .intro-briefing-nav-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .intro-briefing-nav-actions button {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .intro-skip-button {
+    color: #ffaa00;
+    border-color: rgba(255, 170, 0, 0.62);
+    background: rgba(255, 170, 0, 0.1);
+    box-shadow: 0 0 12px rgba(255, 170, 0, 0.12);
+  }
+
+  .incident-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .game-header-actions,
+  .hand-actions,
+  .incident-actions,
+  .game-over-actions,
+  .vote-proposal-actions,
+  .game-info-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .panel-button-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .panel-button-row button,
+  .hand-actions button,
+  .hand-count {
+    min-height: 36px;
+    font-size: 0.58rem;
+    padding-inline: 0.25rem;
+  }
+
+  .system-grid,
+  .lane-board,
+  .defence-zone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lane-board {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .defence-zone {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .players-panel .agent-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-hand-strip .play-card,
+  .play-card {
+    flex-basis: 100px;
+    max-width: 100px;
+  }
+}
+
+/* ── Button refinement pass: mobile lobby + desktop discussion/exit ── */
+@media (min-width: 761px) {
+  .discussion-ready-panel {
+    padding: 0.58rem 0.85rem;
+    min-height: 0;
+  }
+
+  .discussion-ready-panel button {
+    min-height: 30px;
+    padding: 0.32rem 0.62rem;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+  }
+
+  .game-header-actions .red {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: #ffdce3;
+    border-color: rgba(255, 51, 85, 0.5);
+    background: rgba(255, 51, 85, 0.12);
+  }
+
+  .game-header-actions .red:hover {
+    color: #ffffff;
+    border-color: rgba(255, 51, 85, 0.8);
+    background: rgba(255, 51, 85, 0.22);
+    box-shadow: 0 0 14px rgba(255, 51, 85, 0.18);
+  }
+}
+
+@media (max-width: 760px) {
+  .lobby-action-row.MuiStack-root {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+    width: 100%;
+    margin-top: 1.35rem;
+    align-items: stretch;
+  }
+
+  .lobby-action-row.MuiStack-root > .MuiButton-root,
+  .lobby-action-row.MuiStack-root > .lobby-action-button.MuiButton-root {
+    width: 100%;
+    min-width: 0;
+    min-height: 34px;
+    padding: 0.42rem 0.2rem;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.55rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .lobby-action-row.MuiStack-root > .MuiButton-root + .MuiButton-root {
+    margin-left: 0;
+  }
+}
+
+
+/* ── Hacker draw flow: desktop queue stays hidden until draw choice ── */
+@media (min-width: 761px) {
+  .queue-section.draw-choice-pending {
+    display: none;
+  }
+}

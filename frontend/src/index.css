@@ -189,7 +189,9 @@ html, body {
   background-attachment: var(--backdrop-attachment);
   color: var(--text);
   font-family: 'Share Tech Mono', monospace;
+  overflow-y: auto;
 }
+
 
 #root {
   min-height: 100vh;
@@ -467,4 +469,98 @@ button:focus, button:focus-visible {
 :root[data-background="pencil"] .settings-option.active {
   background: var(--themed-button-hover-bg);
   box-shadow: 0 0 18px var(--themed-panel-glow), inset 0 0 28px rgba(255, 255, 255, 0.035);
+}
+
+
+/* Layout safety: keep compact controls visible and prevent viewport overflow. */
+html, body, #root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  min-width: 0;
+}
+
+#root,
+.themed-screen,
+.home-page,
+.enter-details-page,
+.lobby-page,
+.card-list-page,
+.settings-wrapper,
+.game-page {
+  min-width: 0;
+}
+
+button,
+.menu-button,
+.back-button,
+.MuiButton-root {
+  max-width: 100%;
+  min-height: 38px;
+  min-width: 0;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.MuiContainer-root,
+.MuiBox-root,
+.MuiStack-root {
+  min-width: 0;
+}
+
+.auth-panel,
+.lobby-panel,
+.themed-panel {
+  max-width: calc(100vw - 1.5rem);
+  min-width: 0;
+}
+
+.lobby-page,
+.enter-details-page,
+.home-page,
+.settings-wrapper {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.lobby-page,
+.enter-details-page {
+  min-height: 100dvh;
+  padding-block: clamp(1rem, 3vh, 2.5rem);
+}
+
+.lobby-panel {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+@media (max-width: 640px) {
+  button,
+  .menu-button,
+  .back-button,
+  .MuiButton-root {
+    min-height: 40px;
+    padding-inline: 0.7rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+  }
+
+  .home-page {
+    justify-content: center !important;
+    min-height: 100dvh;
+    padding-block: 1.25rem;
+  }
+
+  .home-brand-stack {
+    margin-bottom: 1.5rem !important;
+  }
+
+  .auth-panel,
+  .lobby-panel {
+    padding: 1.25rem !important;
+  }
 }

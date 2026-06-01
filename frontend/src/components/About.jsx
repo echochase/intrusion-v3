@@ -44,7 +44,7 @@ export const About = () => {
       <h2>Core Idea</h2>
       <p>
         One player is secretly the <strong>Hacker</strong>. Everyone else is a <strong>Security Engineer</strong>.
-        The engineers need to complete enough Project Progress or identify the insider. The Hacker needs
+        The engineers need to complete enough Project Progress (12 in a 4-player game, 15 in a 5-player game) or identify the insider. The Hacker needs
         to reduce System Integrity to zero before the team finishes the project.
       </p>
       <p>

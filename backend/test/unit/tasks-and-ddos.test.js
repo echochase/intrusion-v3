@@ -156,3 +156,13 @@ test('open DDoS adds public stuck messages for cards that cannot process', () =>
   assert.ok(stuckMessages.every((message) => message.includes('attempted to process')));
   assert.equal(system.incidentEvents.filter((event) => event.outcome === 'deferred-by-ddos').length, 2);
 });
+
+test('project progress quota scales by player count', () => {
+  const fourPlayerSystem = new GameSystem(4);
+  assert.equal(fourPlayerSystem.numTasks, 12);
+  assert.equal(fourPlayerSystem.totalTasks, 12);
+
+  const fivePlayerSystem = new GameSystem(5);
+  assert.equal(fivePlayerSystem.numTasks, 15);
+  assert.equal(fivePlayerSystem.totalTasks, 15);
+});

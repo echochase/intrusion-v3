@@ -15,7 +15,7 @@ function delta(after, before) {
 class GameSystem {
   constructor(numPlayers) {
     this.integrityPoints = 4;
-    this.numTasks = numPlayers === 5 ? 10 : 8;
+    this.numTasks = numPlayers === 5 ? 15 : 12;
     this.totalTasks = this.numTasks;
     this.numPlayers = numPlayers;
     this.maxProcesses = numPlayers + 1;
