@@ -571,22 +571,23 @@ function IntroBriefingModal({ open, role, onClose, onSkipIntro }) {
       ),
     },
     {
-      eyebrow: 'system routing',
-      title: 'The queue is unstable',
+      eyebrow: 'hacker objective',
+      title: 'Hacker',
       body: (
         <>
-          <p>Submitted cards are processed in a random order. The incident report shows the order the system actually processed them, not the order players submitted them. If the network is under DDoS attack, the Hacker's hostile card cuts ahead of the random queue.</p>
-          <p>Rapid Incident Response still processes first.</p>
+          <p>Infiltrate the system's defences and wreak havoc without exposing your identity.</p>
+          <p>Hackers cannot play attack cards during the first turn. Your goal is to reduce System Integrity to zero before QuantumNova finishes its defence system.</p>
         </>
       ),
     },
     {
-      eyebrow: 'security notice',
-      title: 'One formal accusation',
+      eyebrow: 'security objective',
+      title: 'Security Engineer',
       body: (
         <>
-          <p>After cycle 3, the Security Engineers will have one formal chance to vote out the player they believe is the Hacker.</p>
-          <p>If the vote is correct, QuantumNova survives the insider threat. If it is wrong, the accused player is removed and the vote is spent.</p>
+          <p>Work together to defend QuantumNova's system against incoming attacks. But not everyone at the table is trustworthy.</p>
+          <p>Win by voting out the Hacker, or by completing enough project progress to deploy the quantum computer security system: 12 progress in a 4-player game, or 15 in a 5-player game.</p>
+          <p>Do this before System Integrity reaches zero.</p>
         </>
       ),
     },
@@ -632,7 +633,7 @@ function IntroBriefingModal({ open, role, onClose, onSkipIntro }) {
 
           <div className="intro-briefing-actions">
             <button type="button" className="intro-skip-button" onClick={onSkipIntro}>Skip intro</button>
-            <div className="intro-briefing-nav-actions">
+            <div className={`intro-briefing-nav-actions ${page === 0 ? 'single-action' : 'paired-actions'}`}>
               {page > 0 && <button type="button" onClick={() => setPage((value) => Math.max(0, value - 1))}>Back</button>}
               <button type="button" onClick={() => (lastPage ? onClose() : setPage((value) => value + 1))}>
                 {lastPage ? 'Enter Simulation' : 'Next'}
@@ -1642,7 +1643,6 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
           <button type="button" onClick={() => setInfoOpen(true)}>Rules</button>
           <button type="button" onClick={() => setLogOpen(true)}>Table Log</button>
           <button type="button" onClick={openLastTurnReport} disabled={!incidentReportPages.length}>Last Report</button>
-          <button type="button" onClick={requestRefresh}>Refresh</button>
           <button type="button" className="red" onClick={leaveGame}>
             Exit
           </button>
@@ -1693,7 +1693,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
               <TurnTimer gameState={gameState} />
               {canReadyDiscussion && (
                 <div className="mobile-ready-inline">
-                  <button type="button" onClick={markTurnReady}>I'm Ready</button>
+                  <button type="button" onClick={markTurnReady}><span aria-hidden="true">×</span> I'm Ready</button>
                 </div>
               )}
               {isDiscussionPhase && gameState?.yourDiscussionReady && (
