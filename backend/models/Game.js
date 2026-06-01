@@ -205,6 +205,7 @@ class Game {
       ...this.hackerDeck.drawMany(hackerDraws),
     ]);
     player.awaitingDrawChoice = false;
+    player.markDiscardIfNeeded();
 
     return { ok: true, mustDiscard: player.mustDiscard(), discardCount: player.discardCount() };
   }

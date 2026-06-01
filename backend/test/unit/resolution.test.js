@@ -157,14 +157,18 @@ test('DDoS on an open Network lane reduces processing capacity without cancellin
   assert.equal(taskDetail.events.find((event) => event.kind === 'task-completed').progress, 1);
 });
 
-test('task cards only advance Project Progress when their lane is defended', () => {
+test('undefended task incident reports name missing lanes without revealing the owner', () => {
   const system = new GameSystem(4);
-  const beforeTasks = system.numTasks;
-  system.addProcess(new tasks.HazardReport(new SecurityEngineer('Engineer')));
+  const task = new tasks.HazardReport(new SecurityEngineer('Engineer'));
+  system.addProcess(task);
 
   system.consumeProcesses(1, {});
 
-  assert.equal(system.numTasks, beforeTasks);
-  assert.equal(system.projectProgressGainedThisTurn, 0);
-  assert.equal(system.turnDebug.resolutionDetails[0].events.find((event) => event.kind === 'task-completed').progress, 0);
+  const event = system.incidentEvents.find((item) => item.cardName === 'Hazard Report');
+  assert.equal(event.outcome, 'task');
+  assert.equal(event.ownerName, null);
+  assert.equal(event.taskProgressDelta, 0);
+  assert.deepEqual(event.requiredLanes, ['physical']);
+  assert.deepEqual(event.laneLabels, ['Physical']);
+  assert.match(event.message, /required Lane \(Physical\) were not fully protected/i);
 });

@@ -3939,3 +3939,63 @@ button.defence-slot.text-only {
   margin-top: 0;
   margin-bottom: 0;
 }
+
+/* ── Desktop follow-up: make play-card wrappers hug the card artwork. ── */
+@media (min-width: 761px) {
+  .play-card {
+    border: 0;
+    clip-path: none;
+  }
+
+  .play-card-image {
+    aspect-ratio: auto;
+    height: auto;
+    object-fit: contain;
+  }
+
+  .incident-card-tile {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .incident-card-tile .play-card {
+    flex: 0 0 auto;
+    width: min(220px, 100%);
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .incident-card-tile .play-card-meta,
+  .incident-card-tile .play-card-details {
+    display: none;
+  }
+}
+
+/* ── Final card wrapper fit: prevent flex/grid stretch from extending hover areas beyond artwork. ── */
+.hand-strip,
+.command-hand-strip,
+.task-card-row-detailed,
+.incident-card-tile {
+  align-items: flex-start;
+}
+
+.play-card {
+  align-self: flex-start;
+  display: inline-block;
+  height: auto;
+  line-height: 0;
+  flex-grow: 0;
+}
+
+.play-card-image {
+  display: block;
+  height: auto;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.play-card-fallback,
+.play-card-details {
+  line-height: normal;
+}
