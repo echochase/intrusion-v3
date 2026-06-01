@@ -40,6 +40,7 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
   const isLeader = name === ownerName;
   const isSpectator = spectators.some((s) => s.name === name) && !players.some((p) => p.name === name);
   const connectedPlayerCount = players.filter((p) => p.connected !== false).length;
+  const canAddBot = isLeader && !isSpectator && connectedPlayerCount < 5;
 
   const leaveLobby   = () => { socket.emit("leave-room", roomCode, name); navigate("/"); };
   const handleKick   = (n) => socket.emit("kick-player", roomCode, name, n);
@@ -273,8 +274,8 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
           )}
 
           {/* Action buttons */}
-          <Stack className="lobby-action-row" direction="row" spacing={2} justifyContent="center" mt={4}>
-            {isLeader && !isSpectator && connectedPlayerCount < 5 && (
+          <Stack className={`lobby-action-row ${canAddBot ? "with-add-bot" : "without-add-bot"}`} direction="row" spacing={2} justifyContent="center" mt={4}>
+            {canAddBot && (
               <Button className="lobby-action-button" variant="outlined" onClick={addBot} sx={{
                 ...cyberBase, px:3, py:1.1,
                 border:"1px solid rgba(0,212,255,0.5)", color:"#00d4ff", fontWeight:700,
@@ -289,7 +290,7 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
                 border:"1px solid rgba(0,255,136,0.6)", color:"#00ff88", fontWeight:700,
                 "&:hover":{ border:"1px solid #00ff88", background:"rgba(0,255,136,0.1)", boxShadow:"0 0 18px rgba(0,255,136,0.3)", color:"#e8fff2" },
               }}>
-                <span className="desktop-label">Start Simulation</span><span className="mobile-label">Start</span>
+                Start Simulation
               </Button>
             ) : isSpectator ? (
               <Button className="lobby-action-button" variant="outlined" disabled sx={{
@@ -320,7 +321,7 @@ export const Lobby = ({ socket, name, room, setRoom }) => {
               border:"1px solid rgba(255,51,85,0.4)", color:"#ff3355",
               "&:hover":{ border:"1px solid #ff3355", background:"rgba(255,51,85,0.08)", boxShadow:"0 0 12px rgba(255,51,85,0.15)" },
             }}>
-              <span className="desktop-label">Exit Room</span><span className="mobile-label">Exit</span>
+              Exit Room
             </Button>
           </Stack>
         </Box>

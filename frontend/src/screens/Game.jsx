@@ -309,6 +309,8 @@ function CardTile({
   disabled = false,
   onClick,
   onDragStart,
+  onPointerDragMove,
+  onPointerDrop,
   onInspect,
   compact = false,
   animate = false,
@@ -317,7 +319,10 @@ function CardTile({
   const src = imageFor(card);
   const holdTimerRef = useRef(null);
   const longPressFiredRef = useRef(false);
+  const pointerDragRef = useRef({ tracking: false, moved: false, startX: 0, startY: 0, pointerId: null });
+  const pointerDragFiredRef = useRef(false);
   const [holding, setHolding] = useState(false);
+  const [mobileDragging, setMobileDragging] = useState(false);
   const hoverLabel = hoverCardName(card);
 
   const clearHold = () => {
@@ -328,6 +333,20 @@ function CardTile({
     setHolding(false);
   };
 
+  const resetPointerDrag = () => {
+    pointerDragRef.current = { tracking: false, moved: false, startX: 0, startY: 0, pointerId: null };
+    setMobileDragging(false);
+    onPointerDragMove?.(null);
+  };
+
+  const canUseMobileDrag = () => (
+    draggable
+    && !disabled
+    && typeof onPointerDrop === 'function'
+    && typeof window !== 'undefined'
+    && Boolean(window.matchMedia?.('(max-width: 760px)').matches)
+  );
+
   useEffect(() => () => {
     if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
   }, []);
@@ -337,8 +356,20 @@ function CardTile({
     if (event.button !== undefined && event.button !== 0) return;
 
     longPressFiredRef.current = false;
+    pointerDragFiredRef.current = false;
     clearHold();
     setHolding(true);
+
+    if (canUseMobileDrag()) {
+      pointerDragRef.current = {
+        tracking: true,
+        moved: false,
+        startX: event.clientX,
+        startY: event.clientY,
+        pointerId: event.pointerId,
+      };
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
 
     holdTimerRef.current = window.setTimeout(() => {
       longPressFiredRef.current = true;
@@ -348,9 +379,56 @@ function CardTile({
     }, 500);
   };
 
+  const handlePointerMove = (event) => {
+    const drag = pointerDragRef.current;
+    if (!drag.tracking || drag.pointerId !== event.pointerId) return;
+
+    const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+    if (!drag.moved && distance > 10) {
+      drag.moved = true;
+      pointerDragFiredRef.current = true;
+      clearHold();
+      setMobileDragging(true);
+    }
+
+    if (drag.moved) {
+      event.preventDefault();
+      onPointerDragMove?.({ clientX: event.clientX, clientY: event.clientY, cardId: card?.id });
+    }
+  };
+
+  const handlePointerUp = (event) => {
+    const drag = pointerDragRef.current;
+    clearHold();
+
+    if (drag.tracking && drag.pointerId === event.pointerId) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      if (drag.moved) {
+        event.preventDefault();
+        event.stopPropagation();
+        onPointerDrop?.({ clientX: event.clientX, clientY: event.clientY, cardId: card?.id });
+      }
+      resetPointerDrag();
+    }
+  };
+
+  const handlePointerCancel = (event) => {
+    if (pointerDragRef.current.pointerId === event.pointerId) {
+      resetPointerDrag();
+    }
+    clearHold();
+  };
+
+  const handlePointerLeave = () => {
+    if (!pointerDragRef.current.tracking || !pointerDragRef.current.moved) {
+      clearHold();
+    }
+  };
+
   const handleClick = (event) => {
-    if (longPressFiredRef.current) {
+    if (longPressFiredRef.current || pointerDragFiredRef.current) {
       longPressFiredRef.current = false;
+      pointerDragFiredRef.current = false;
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -361,13 +439,14 @@ function CardTile({
 
   return (
     <div
-      className={`play-card ${selected ? "selected" : ""} ${compact ? "compact" : ""} ${disabled ? "disabled" : ""} ${animate ? "drawn-card" : ""} ${holding ? "holding" : ""}`}
+      className={`play-card ${selected ? "selected" : ""} ${compact ? "compact" : ""} ${disabled ? "disabled" : ""} ${animate ? "drawn-card" : ""} ${holding ? "holding" : ""} ${mobileDragging ? "mobile-dragging" : ""}`}
       draggable={draggable && !disabled}
       onClick={handleClick}
       onPointerDown={startHold}
-      onPointerUp={clearHold}
-      onPointerCancel={clearHold}
-      onPointerLeave={clearHold}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onPointerLeave={handlePointerLeave}
       onDragStart={(event) => {
         clearHold();
         onDragStart?.(event);
@@ -1184,6 +1263,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
   const previousHandIdsRef = useRef(null);
   const drawTimerRef = useRef(null);
   const affordanceTimerRef = useRef(null);
+  const queueDropRef = useRef(null);
   const delayGameOverRef = useRef(false);
   const pendingGameOverRef = useRef(null);
   const introSeenRef = useRef(false);
@@ -1546,6 +1626,29 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
     setError("");
   };
 
+  const isPointInQueueDropZone = (point) => {
+    const rect = queueDropRef.current?.getBoundingClientRect();
+    if (!rect || !point) return false;
+    return point.clientX >= rect.left
+      && point.clientX <= rect.right
+      && point.clientY >= rect.top
+      && point.clientY <= rect.bottom;
+  };
+
+  const handleMobileCardDragMove = (point) => {
+    if (!canAct || mustDiscard || !point) {
+      setDragOver(false);
+      return;
+    }
+    setDragOver(isPointInQueueDropZone(point));
+  };
+
+  const handleMobileCardDrop = (cardId, point) => {
+    setDragOver(false);
+    if (!isPointInQueueDropZone(point)) return;
+    stageCard(cardId);
+  };
+
   const removeStagedCard = (cardId) => {
     setStagedIds((current) => current.filter((id) => id !== cardId));
     setCardTargets((current) => {
@@ -1780,6 +1883,8 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
                 onClick={() => stageCard(task.id)}
                 onInspect={setPreviewCard}
                 onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
+                onPointerDragMove={handleMobileCardDragMove}
+                onPointerDrop={(point) => handleMobileCardDrop(task.id, point)}
               />
               <TaskDetails task={task} />
             </div>
@@ -1804,7 +1909,7 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
           }}
         >
           <div className="command-panel-grid">
-            <div className={`queue-section ${you?.awaitingDrawChoice ? "draw-choice-pending" : ""}`}>
+            <div ref={queueDropRef} className={`queue-section ${you?.awaitingDrawChoice ? "draw-choice-pending" : ""}`}>
               <div className="panel-heading compact-heading">
                 <span>// system queue</span>
                 <strong>{visibleQueueCards.length}/{maxSubmitCards}</strong>
@@ -1901,6 +2006,8 @@ export const Game = ({ socket, name, room, setRoom, skipIntro = false, setSkipIn
                             draggable={!mustDiscard && canAct}
                             onClick={() => (mustDiscard ? toggleDiscard(card.id) : stageCard(card.id))}
                             onDragStart={(e) => e.dataTransfer.setData("text/plain", card.id)}
+                            onPointerDragMove={handleMobileCardDragMove}
+                            onPointerDrop={(point) => handleMobileCardDrop(card.id, point)}
                           />
                         );
                       })
